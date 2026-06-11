@@ -77,7 +77,7 @@ describe('summarizeNormalizedOdds', () => {
           },
           {
             id: 3,
-            name: 'Handicap Result',
+            name: 'Asian Handicap',
             values: [
               { value: 'Home', odd: '1.91', handicap: '-0.25' },
               { value: 'Away', odd: '1.95', handicap: '+0.25' },
@@ -330,13 +330,15 @@ describe('resolveMatchOdds', () => {
   test('returns fresh cached odds without hitting providers', async () => {
     const footballApi = await import('../lib/football-api.js');
     const cacheRepo = await import('../repos/provider-odds-cache.repo.js');
+    const sampling = await import('../lib/provider-sampling.js');
+    const cachedResponse = [{ bookmakers: [{ bets: [{ name: 'Match Winner', values: [] }] }] }];
 
     vi.mocked(cacheRepo.getProviderOddsCache).mockResolvedValueOnce({
       match_id: '100',
       odds_source: 'live',
       provider_source: 'api-football-live',
-      response: [{ bookmakers: [{ bets: [{ name: 'Match Winner', values: [] }] }] }],
-      coverage_flags: {},
+      response: cachedResponse,
+      coverage_flags: { has_1x2: true },
       provider_trace: {},
       odds_fetched_at: '2026-03-25T12:00:00.000Z',
       cached_at: new Date().toISOString(),
@@ -357,6 +359,15 @@ describe('resolveMatchOdds', () => {
     expect(result.cacheStatus).toBe('hit');
     expect(result.freshness).toBe('fresh');
     expect(footballApi.fetchLiveOdds).not.toHaveBeenCalled();
+    expect(sampling.recordProviderOddsSampleSafe).toHaveBeenCalledWith(expect.objectContaining({
+      match_id: '100',
+      provider: 'cache',
+      source: 'live',
+      success: true,
+      usable: true,
+      normalized_payload: cachedResponse,
+      coverage_flags: { has_1x2: true },
+    }));
   });
 
   test('ignores fresh legacy the-odds-live cache rows and refreshes from API-Football providers', async () => {

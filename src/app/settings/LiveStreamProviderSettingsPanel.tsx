@@ -13,23 +13,59 @@ import {
   updateLiveStreamLocatorSettings,
   type LiveStreamLocatorSettings,
   type LiveStreamProviderProbeResult,
+  type LiveStreamSource,
+  type LiveStreamSourceType,
 } from '@/lib/services/api';
+
+const COUNTRY_OPTIONS = [
+  { code: '*', label: 'Global (*)' },
+  { code: 'VN', label: 'Vietnam (VN)' },
+  { code: 'KR', label: 'South Korea (KR)' },
+  { code: 'TH', label: 'Thailand (TH)' },
+  { code: 'JP', label: 'Japan (JP)' },
+  { code: 'SG', label: 'Singapore (SG)' },
+  { code: 'US', label: 'United States (US)' },
+] as const;
 
 type LiveStreamSettingsDraft = {
   enabled: boolean;
-  providerUrls: string[];
+  sources: LiveStreamSource[];
   timeoutMs: string;
   cacheTtlSeconds: string;
   maxMatches: string;
+  regionFiltering: LiveStreamLocatorSettings['regionFiltering'];
 };
 
+function sourceFromUrl(url: string, index: number): LiveStreamSource {
+  return {
+    id: `source-${index + 1}`,
+    name: liveStreamProviderHostname(url),
+    url,
+    countries: ['*'],
+    priority: 100 + index,
+    active: true,
+    sourceType: 'provider_homepage',
+  };
+}
+
 function draftFromLiveStreamSettings(settings: LiveStreamLocatorSettings): LiveStreamSettingsDraft {
+  const sources = settings.sources?.length
+    ? settings.sources
+    : settings.providerUrls.map(sourceFromUrl);
   return {
     enabled: settings.enabled,
-    providerUrls: [...settings.providerUrls],
+    sources: sources.map((source, index) => ({
+      ...source,
+      id: source.id || `source-${index + 1}`,
+      countries: source.countries?.length ? source.countries : ['*'],
+      priority: Number.isInteger(source.priority) ? source.priority : 100 + index,
+      active: source.active !== false,
+      sourceType: source.sourceType || 'provider_homepage',
+    })),
     timeoutMs: String(settings.timeoutMs),
     cacheTtlSeconds: String(Math.round(settings.cacheTtlMs / 1000)),
     maxMatches: String(settings.maxMatches),
+    regionFiltering: settings.regionFiltering ?? { enabled: true, unknownPolicy: 'global_only' },
   };
 }
 
@@ -38,21 +74,51 @@ function draftsEqual(a: LiveStreamSettingsDraft | null, b: LiveStreamSettingsDra
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
+function normalizeCountries(countries: string[]): string[] {
+  const normalized = countries
+    .map((country) => country.trim().toUpperCase())
+    .filter((country) => country === '*' || /^[A-Z]{2}$/.test(country));
+  const unique = [...new Set(normalized)];
+  return unique.length > 1 ? unique.filter((country) => country !== '*') : unique;
+}
+
 function buildLiveStreamSettingsPayload(draft: LiveStreamSettingsDraft): { payload: LiveStreamLocatorSettings | null; error: string | null } {
-  const providerUrls: string[] = [];
-  for (const raw of draft.providerUrls) {
-    const normalized = normalizeLiveStreamProviderUrl(raw);
-    if (!normalized.url) {
-      return { payload: null, error: normalized.error ?? `Invalid provider URL: ${raw}` };
+  const sources: LiveStreamSource[] = [];
+  const seen = new Set<string>();
+
+  for (let index = 0; index < draft.sources.length; index += 1) {
+    const source = draft.sources[index]!;
+    const normalizedUrl = normalizeLiveStreamProviderUrl(source.url);
+    if (!normalizedUrl.url) {
+      return { payload: null, error: normalizedUrl.error ?? `Invalid source URL: ${source.url}` };
     }
-    if (!providerUrls.includes(normalized.url)) providerUrls.push(normalized.url);
+    const countries = normalizeCountries(source.countries);
+    if (countries.length === 0) return { payload: null, error: 'Select at least one country for every source.' };
+    const sourceType = source.sourceType;
+    const priority = Number(source.priority);
+    if (!Number.isInteger(priority) || priority < 0 || priority > 10_000) {
+      return { payload: null, error: 'Source priority must be from 0 to 10000.' };
+    }
+    const dedupeKey = `${normalizedUrl.url}|${[...countries].sort().join(',')}|${sourceType}`;
+    if (seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+    sources.push({
+      id: source.id || `source-${index + 1}`,
+      name: source.name.trim() || liveStreamProviderHostname(normalizedUrl.url),
+      url: normalizedUrl.url,
+      countries,
+      priority,
+      active: source.active,
+      sourceType,
+      ...(source.notes?.trim() ? { notes: source.notes.trim() } : {}),
+    });
   }
 
-  if (draft.enabled && providerUrls.length === 0) {
-    return { payload: null, error: 'Add at least one provider URL or disable lookup.' };
+  if (draft.enabled && sources.length === 0) {
+    return { payload: null, error: 'Add at least one source or disable lookup.' };
   }
-  if (providerUrls.length > MAX_LIVE_STREAM_PROVIDER_URLS) {
-    return { payload: null, error: `Provider URL list supports at most ${MAX_LIVE_STREAM_PROVIDER_URLS} entries.` };
+  if (sources.length > 50) {
+    return { payload: null, error: 'Live stream source list supports at most 50 entries.' };
   }
 
   const timeoutMs = Number(draft.timeoutMs);
@@ -73,10 +139,12 @@ function buildLiveStreamSettingsPayload(draft: LiveStreamSettingsDraft): { paylo
   return {
     payload: {
       enabled: draft.enabled,
-      providerUrls,
+      sources,
+      providerUrls: [...new Set(sources.map((source) => source.url))],
       timeoutMs,
       cacheTtlMs: cacheTtlSeconds * 1000,
       maxMatches,
+      regionFiltering: draft.regionFiltering,
     },
     error: null,
   };
@@ -85,7 +153,7 @@ function buildLiveStreamSettingsPayload(draft: LiveStreamSettingsDraft): { paylo
 function probeSummary(result: LiveStreamProviderProbeResult): string {
   if (!result.reachable) return result.error ?? 'Unreachable';
   const parsers = result.detectedParsers.length > 0 ? result.detectedParsers.join(', ') : 'no known parsers';
-  return `HTTP ${result.httpStatus ?? '?'} · ${parsers} · ${result.anchorLinkCount} links`;
+  return `HTTP ${result.httpStatus ?? '?'} / ${parsers} / ${result.anchorLinkCount} links`;
 }
 
 export function LiveStreamProviderSettingsPanel() {
@@ -129,36 +197,46 @@ export function LiveStreamProviderSettingsPanel() {
     setDraft((prev) => prev ? { ...prev, [key]: value } : prev);
   }, []);
 
+  const updateSource = useCallback((sourceId: string, patch: Partial<LiveStreamSource>) => {
+    setDraft((prev) => prev ? {
+      ...prev,
+      sources: prev.sources.map((source) => source.id === sourceId ? { ...source, ...patch } : source),
+    } : prev);
+  }, []);
+
   const isDirty = useMemo(() => !draftsEqual(draft, savedDraft), [draft, savedDraft]);
 
-  const handleAddProvider = useCallback(() => {
+  const handleAddSource = useCallback(() => {
     if (!draft) return;
     const normalized = normalizeLiveStreamProviderUrl(addUrlValue);
     if (!normalized.url) {
       setAddUrlError(normalized.error);
       return;
     }
-    if (draft.providerUrls.some((url) => normalizeLiveStreamProviderUrl(url).url === normalized.url)) {
-      setAddUrlError('This provider URL is already in the list.');
+    if (draft.sources.some((source) => normalizeLiveStreamProviderUrl(source.url).url === normalized.url)) {
+      setAddUrlError('This source URL is already in the list.');
       return;
     }
-    if (draft.providerUrls.length >= MAX_LIVE_STREAM_PROVIDER_URLS) {
-      setAddUrlError(`Provider URL list supports at most ${MAX_LIVE_STREAM_PROVIDER_URLS} entries.`);
+    if (draft.sources.length >= MAX_LIVE_STREAM_PROVIDER_URLS) {
+      setAddUrlError(`Quick add supports at most ${MAX_LIVE_STREAM_PROVIDER_URLS} source URLs.`);
       return;
     }
-    updateDraft('providerUrls', [...draft.providerUrls, normalized.url]);
+    updateDraft('sources', [...draft.sources, sourceFromUrl(normalized.url, draft.sources.length)]);
     setAddUrlValue('');
     setAddUrlError(null);
   }, [addUrlValue, draft, updateDraft]);
 
-  const handleRemoveProvider = useCallback((url: string) => {
+  const handleRemoveSource = useCallback((sourceId: string) => {
     if (!draft) return;
-    updateDraft('providerUrls', draft.providerUrls.filter((item) => item !== url));
-    setProbeResults((prev) => {
-      const next = new Map(prev);
-      next.delete(url);
-      return next;
-    });
+    const source = draft.sources.find((item) => item.id === sourceId);
+    updateDraft('sources', draft.sources.filter((item) => item.id !== sourceId));
+    if (source) {
+      setProbeResults((prev) => {
+        const next = new Map(prev);
+        next.delete(source.url);
+        return next;
+      });
+    }
   }, [draft, updateDraft]);
 
   const handleSave = useCallback(async () => {
@@ -191,15 +269,15 @@ export function LiveStreamProviderSettingsPanel() {
       setError(built.error);
       return;
     }
-    if (built.payload.providerUrls.length === 0) {
-      setError('Add at least one provider URL to test.');
+    if (built.payload.sources.length === 0) {
+      setError('Add at least one source to test.');
       return;
     }
 
     setTesting(true);
     setError(null);
     try {
-      const response = await testLiveStreamProviders(apiConfig, built.payload.providerUrls, built.payload.timeoutMs);
+      const response = await testLiveStreamProviders(apiConfig, built.payload.sources, built.payload.timeoutMs);
       setProbeResults(new Map(response.results.map((result) => [result.url, result])));
       setProbeCheckedAt(response.checkedAt);
       showToast('Provider probe finished.', 'success');
@@ -215,7 +293,7 @@ export function LiveStreamProviderSettingsPanel() {
   }
 
   const cacheTtlSeconds = Number(draft?.cacheTtlSeconds ?? '0');
-  const providerCount = draft?.providerUrls.length ?? 0;
+  const sourceCount = draft?.sources.length ?? 0;
 
   return (
     <div className="settings-section settings-live-panel">
@@ -223,7 +301,7 @@ export function LiveStreamProviderSettingsPanel() {
         <div>
           <h3 className="settings-live-title">Live stream lookup</h3>
           <p className="settings-live-lead">
-            Scans configured provider homepages when a match is live on the Matches tab, then matches team names to stream links.
+            Scans configured live sources by viewer region, then matches team names to stream links.
           </p>
         </div>
         <label className="settings-inline-check settings-live-enabled">
@@ -238,10 +316,12 @@ export function LiveStreamProviderSettingsPanel() {
       </div>
 
       <div className="settings-live-status" aria-live="polite">
-        <span>{providerCount} provider{providerCount === 1 ? '' : 's'}</span>
-        <span aria-hidden="true">·</span>
+        <span>{sourceCount} source{sourceCount === 1 ? '' : 's'}</span>
+        <span aria-hidden="true">&middot;</span>
         <span>{draft?.enabled ? 'Lookup ON' : 'Lookup OFF'}</span>
-        <span aria-hidden="true">·</span>
+        <span aria-hidden="true">&middot;</span>
+        <span>{draft?.regionFiltering.enabled ? 'Region filter ON' : 'Region filter OFF'}</span>
+        <span aria-hidden="true">&middot;</span>
         <span>Cache {formatLiveStreamCacheTtl(Number.isFinite(cacheTtlSeconds) ? cacheTtlSeconds : 0)}</span>
         {isDirty ? <span className="settings-live-status__dirty">Unsaved changes</span> : null}
       </div>
@@ -250,13 +330,13 @@ export function LiveStreamProviderSettingsPanel() {
 
       <section className="settings-live-section" aria-labelledby="settings-live-providers-heading">
         <div className="settings-live-section__header">
-          <h4 id="settings-live-providers-heading" className="settings-live-section__title">Providers</h4>
+          <h4 id="settings-live-providers-heading" className="settings-live-section__title">Sources</h4>
           <div className="settings-live-section__actions">
             <button type="button" className="btn btn-secondary btn-sm" onClick={() => { void load(); }} disabled={loading || saving || testing}>
               {loading ? 'Refreshing...' : 'Refresh'}
             </button>
-            <button type="button" className="btn btn-secondary btn-sm" onClick={() => { void handleTestProviders(); }} disabled={!draft || saving || testing || providerCount === 0}>
-              {testing ? 'Testing...' : 'Test providers'}
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => { void handleTestProviders(); }} disabled={!draft || saving || testing || sourceCount === 0}>
+              {testing ? 'Testing...' : 'Test sources'}
             </button>
             <button type="button" className="btn btn-primary btn-sm" onClick={() => { void handleSave(); }} disabled={!draft || saving || testing || !isDirty}>
               {saving ? 'Saving...' : 'Save'}
@@ -264,31 +344,105 @@ export function LiveStreamProviderSettingsPanel() {
           </div>
         </div>
 
-        {providerCount === 0 ? (
+        {sourceCount === 0 ? (
           <div className="settings-live-empty">
-            <p>No provider URLs yet. Add a homepage URL to start matching live streams.</p>
+            <p>No live stream sources yet. Add a homepage URL to start matching live streams.</p>
           </div>
         ) : (
           <ul className="settings-live-provider-list">
-            {draft?.providerUrls.map((url) => {
-              const probe = probeResults.get(url);
+            {draft?.sources.map((source, index) => {
+              const probe = probeResults.get(source.url);
               return (
-                <li key={url} className="settings-live-provider-card">
+                <li key={source.id} className="settings-live-provider-card">
                   <div className="settings-live-provider-card__main">
                     <div className="settings-live-provider-card__identity">
-                      <span className="settings-live-provider-card__host">{liveStreamProviderHostname(url)}</span>
-                      <span className="settings-live-provider-card__url">{url}</span>
+                      <input
+                        className="filter-input settings-live-source-name"
+                        aria-label={`Source name ${index + 1}`}
+                        value={source.name}
+                        disabled={saving || testing}
+                        onChange={(event) => updateSource(source.id, { name: event.target.value })}
+                      />
+                      <span className="settings-live-provider-card__url">{liveStreamProviderHostname(source.url)}</span>
                     </div>
                     <button
                       type="button"
                       className="btn btn-secondary btn-sm settings-live-provider-card__remove"
-                      onClick={() => handleRemoveProvider(url)}
+                      onClick={() => handleRemoveSource(source.id)}
                       disabled={saving || testing}
-                      aria-label={`Remove ${liveStreamProviderHostname(url)}`}
+                      aria-label={`Remove ${source.name || liveStreamProviderHostname(source.url)}`}
                     >
                       Remove
                     </button>
                   </div>
+
+                  <div className="settings-live-source-grid">
+                    <label className="settings-field-label">
+                      <span>URL</span>
+                      <input
+                        type="url"
+                        className="filter-input"
+                        aria-label={`Source URL ${index + 1}`}
+                        value={source.url}
+                        disabled={saving || testing}
+                        onChange={(event) => updateSource(source.id, { url: event.target.value })}
+                      />
+                    </label>
+                    <label className="settings-field-label">
+                      <span>Countries</span>
+                      <select
+                        multiple
+                        className="filter-input settings-live-country-select"
+                        aria-label={`Countries for ${source.name || `source ${index + 1}`}`}
+                        value={source.countries}
+                        disabled={saving || testing}
+                        onChange={(event) => updateSource(source.id, {
+                          countries: Array.from(event.currentTarget.selectedOptions).map((option) => option.value),
+                        })}
+                      >
+                        {COUNTRY_OPTIONS.map((country) => (
+                          <option key={country.code} value={country.code}>{country.label}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="settings-field-label">
+                      <span>Source type</span>
+                      <select
+                        className="filter-input"
+                        aria-label={`Source type ${index + 1}`}
+                        value={source.sourceType}
+                        disabled={saving || testing}
+                        onChange={(event) => updateSource(source.id, { sourceType: event.target.value as LiveStreamSourceType })}
+                      >
+                        <option value="provider_homepage">Provider homepage</option>
+                        <option value="external_page">External page</option>
+                        <option value="direct_hls">Direct HLS</option>
+                      </select>
+                    </label>
+                    <label className="settings-field-label">
+                      <span>Priority</span>
+                      <input
+                        type="number"
+                        className="filter-input"
+                        aria-label={`Priority ${index + 1}`}
+                        min={0}
+                        max={10000}
+                        value={source.priority}
+                        disabled={saving || testing}
+                        onChange={(event) => updateSource(source.id, { priority: Number(event.target.value) })}
+                      />
+                    </label>
+                    <label className="settings-inline-check settings-live-source-active">
+                      <input
+                        type="checkbox"
+                        checked={source.active}
+                        disabled={saving || testing}
+                        onChange={(event) => updateSource(source.id, { active: event.target.checked })}
+                      />
+                      <span>Active</span>
+                    </label>
+                  </div>
+
                   {probe ? (
                     <p className={`settings-live-provider-card__probe ${probe.reachable ? 'is-ok' : 'is-error'}`}>
                       {probeSummary(probe)}
@@ -304,14 +458,14 @@ export function LiveStreamProviderSettingsPanel() {
 
         <div className="settings-live-add">
           <label className="settings-field-label settings-live-add__field">
-            <span>Add provider URL</span>
+            <span>Add source URL</span>
             <input
               type="url"
               className="filter-input"
-              aria-label="Add provider URL"
+              aria-label="Add source URL"
               placeholder="https://example.tv/"
               value={addUrlValue}
-              disabled={!draft || saving || testing || providerCount >= MAX_LIVE_STREAM_PROVIDER_URLS}
+              disabled={!draft || saving || testing || sourceCount >= MAX_LIVE_STREAM_PROVIDER_URLS}
               onChange={(event) => {
                 setAddUrlValue(event.target.value);
                 if (addUrlError) setAddUrlError(null);
@@ -319,13 +473,13 @@ export function LiveStreamProviderSettingsPanel() {
               onKeyDown={(event) => {
                 if (event.key === 'Enter') {
                   event.preventDefault();
-                  handleAddProvider();
+                  handleAddSource();
                 }
               }}
             />
           </label>
-          <button type="button" className="btn btn-secondary btn-sm" onClick={handleAddProvider} disabled={!draft || saving || testing || providerCount >= MAX_LIVE_STREAM_PROVIDER_URLS}>
-            Add URL
+          <button type="button" className="btn btn-secondary btn-sm" onClick={handleAddSource} disabled={!draft || saving || testing || sourceCount >= MAX_LIVE_STREAM_PROVIDER_URLS}>
+            Add source
           </button>
         </div>
         {addUrlError ? <p className="settings-live-add__error" role="alert">{addUrlError}</p> : null}
@@ -376,16 +530,45 @@ export function LiveStreamProviderSettingsPanel() {
               onChange={(event) => updateDraft('maxMatches', event.target.value)}
             />
           </label>
+          <label className="settings-inline-check">
+            <input
+              type="checkbox"
+              checked={draft?.regionFiltering.enabled ?? true}
+              disabled={!draft || saving || testing}
+              onChange={(event) => updateDraft('regionFiltering', {
+                ...(draft?.regionFiltering ?? { enabled: true, unknownPolicy: 'global_only' }),
+                enabled: event.target.checked,
+              })}
+            />
+            <span>Region filtering</span>
+          </label>
+          <label className="settings-field-label">
+            <span>Unknown region policy</span>
+            <select
+              className="filter-input"
+              aria-label="Unknown region policy"
+              value={draft?.regionFiltering.unknownPolicy ?? 'global_only'}
+              disabled={!draft || saving || testing}
+              onChange={(event) => updateDraft('regionFiltering', {
+                ...(draft?.regionFiltering ?? { enabled: true, unknownPolicy: 'global_only' }),
+                unknownPolicy: event.target.value as LiveStreamLocatorSettings['regionFiltering']['unknownPolicy'],
+              })}
+            >
+              <option value="global_only">Global only</option>
+              <option value="hide_all">Hide all</option>
+              <option value="allow_all">Allow all</option>
+            </select>
+          </label>
         </div>
       </details>
 
       <aside className="settings-live-info" aria-label="How live stream matching works">
         <h4 className="settings-live-info__title">How matching works</h4>
         <ul className="settings-live-info__list">
-          <li>Only live matches visible on the current Matches page are scanned.</li>
-          <li>Each provider homepage is fetched, then team names are matched against links, JSON, or grid listings.</li>
-          <li>New URLs are picked up after Save; cache is cleared automatically.</li>
-          <li>Sites with different HTML may need code updates to team aliases or parsers.</li>
+          <li>Backend resolves the viewer country and filters sources before scanning.</li>
+          <li>Country codes use ISO format; Global (*) is the fallback source group.</li>
+          <li>New sources are picked up after Save; cache is cleared automatically.</li>
+          <li>Only sources that TFI may display for the selected country should be configured.</li>
         </ul>
       </aside>
     </div>

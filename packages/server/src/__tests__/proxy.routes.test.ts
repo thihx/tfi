@@ -284,6 +284,7 @@ describe('POST /api/proxy/ai/analyze — error handling', () => {
     const pipeline = await import('../lib/server-pipeline.js');
     expect(pipeline.runPromptOnlyAnalysisForMatch).toHaveBeenCalledWith('12345', {
       advisoryOnly: false,
+      ensureStrategicContext: true,
       forceAnalyze: true,
       followUpHistory: undefined,
       modelOverride: 'gemini-3.5-flash',
@@ -351,14 +352,16 @@ describe('POST /api/proxy/ai/analyze — error handling', () => {
     expect(res.statusCode).toBe(200);
 
     const pipeline = await import('../lib/server-pipeline.js');
-    expect(pipeline.runPromptOnlyAnalysisForMatch).toHaveBeenCalledWith('12345', {
+    expect(pipeline.runPromptOnlyAnalysisForMatch).toHaveBeenLastCalledWith('12345', {
       advisoryOnly: true,
+      ensureStrategicContext: true,
       forceAnalyze: false,
       followUpHistory: [
         { role: 'user', text: 'Why not under?' },
         { role: 'assistant', text: 'Because the home side is still controlling the game.' },
       ],
       modelOverride: 'gemini-3.5-flash',
+      sampleProviderData: true,
       userQuestion: 'What about Home -0.25 here?',
     });
 

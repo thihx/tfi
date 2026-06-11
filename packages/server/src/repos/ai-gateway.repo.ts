@@ -155,7 +155,7 @@ export async function updateAiGatewayIncidentStatus(
             updated_at = NOW(),
             resolved_at = CASE WHEN $2 = 'resolved' THEN NOW() ELSE resolved_at END,
             metadata = COALESCE(metadata, '{}'::jsonb)
-              || jsonb_build_object('lastActionBy', $3, 'lastActionNote', $4, 'lastActionAt', NOW())
+              || jsonb_build_object('lastActionBy', $3::text, 'lastActionNote', $4::text, 'lastActionAt', NOW())
       WHERE id = $1
       RETURNING id, created_at, updated_at, resolved_at, status, severity, incident_type, title,
                 feature_key, operation, provider, model, match_id, run_id, breaker_id, metadata`,
@@ -171,7 +171,7 @@ export async function closeAiGatewayBreaker(id: number, actor: string, note?: st
             updated_at = NOW(),
             closed_at = NOW(),
             metadata = COALESCE(metadata, '{}'::jsonb)
-              || jsonb_build_object('closedBy', $2, 'closeNote', $3, 'closedActionAt', NOW())
+              || jsonb_build_object('closedBy', $2::text, 'closeNote', $3::text, 'closedActionAt', NOW())
       WHERE id = $1
         AND status = 'open'
       RETURNING id, created_at, updated_at, opened_at, closed_at, status, scope_type, scope_key,

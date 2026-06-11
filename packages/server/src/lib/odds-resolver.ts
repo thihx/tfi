@@ -158,8 +158,18 @@ function isGoalsOuBetName(name: string): boolean {
     );
 }
 
+function isFootballAsianHandicapBetName(name: string): boolean {
+  return name.includes('asian handicap')
+    && !name.includes('corner')
+    && !name.includes('card')
+    && !name.includes('yellow')
+    && !name.includes('offside')
+    && !name.includes('foul')
+    && !name.includes('shot');
+}
+
 function isAhBetName(name: string): boolean {
-  return !name.includes('corner') && name.includes('handicap');
+  return isFootballAsianHandicapBetName(name);
 }
 
 function isBttsBetName(name: string): boolean {
@@ -402,6 +412,30 @@ function buildCacheResult(
   };
 }
 
+function recordCachedOddsSample(
+  input: ResolveMatchOddsInput,
+  row: ProviderOddsCacheRow,
+  deps: ResolveMatchOddsDeps,
+): void {
+  if (!isSamplingEnabled(input)) return;
+  const normalizedPayload = responseArrayOf(row);
+  const coverageFlags = row.coverage_flags && Object.keys(row.coverage_flags).length > 0
+    ? row.coverage_flags
+    : (deps.summarizeCoverageFlags ?? summarizeNormalizedOdds)(normalizedPayload);
+  void recordProviderOddsSampleSafe({
+    ...sampleBase(input),
+    provider: 'cache',
+    source: row.odds_source || mapProviderSourceToResolved((row.provider_source as ProviderOddsSource) || 'none'),
+    success: true,
+    usable: hasUsableBookmakers(normalizedPayload),
+    latency_ms: 0,
+    error: '',
+    raw_payload: {},
+    normalized_payload: normalizedPayload,
+    coverage_flags: coverageFlags,
+  });
+}
+
 async function loadFreshCachedOdds(
   input: ResolveMatchOddsInput,
   deps: ResolveMatchOddsDeps,
@@ -416,6 +450,7 @@ async function loadFreshCachedOdds(
     if (!cached) return { staleRow: null };
     if (isLegacyProviderSource(cached.provider_source)) return { staleRow: null };
     if (freshness === 'fresh' && !bypassStartedCache(mode, input.status ?? cached.match_status)) {
+      recordCachedOddsSample(input, cached, deps);
       return buildCacheResult(cached, 'fresh', 'hit');
     }
     return { staleRow: cached };

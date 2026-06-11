@@ -66,7 +66,7 @@ import {
   type PromptStatsDetailLevel,
 } from './live-analysis-prompt.js';
 import { normalizeMarket } from './normalize-market.js';
-import { hasUsableStrategicContext } from './strategic-context.service.js';
+import { fetchStrategicContext, hasUsableStrategicContext } from './strategic-context.service.js';
 import { getLeagueProfileByLeagueId } from '../repos/league-profiles.repo.js';
 import { getTeamProfileByTeamId } from '../repos/team-profiles.repo.js';
 import { getLeagueById } from '../repos/leagues.repo.js';
@@ -380,9 +380,24 @@ function deriveProviderOddsCoverageFlagsForPipeline(normalizedPayload: unknown[]
     const row = value as Record<string, unknown> | null;
     return row?.[first] != null && row[second] != null;
   };
+  const completePairInArray = (value: unknown, first: 'over' | 'home', second: 'under' | 'away') => (
+    Array.isArray(value) && value.some((row) => completePair(row, first, second))
+  );
   const canonicalHas1x2 = complete1x2(canonical['1x2']);
-  const canonicalHasOu = completePair(canonical.ou, 'over', 'under') || completePair(canonical.ht_ou, 'over', 'under');
-  const canonicalHasAh = completePair(canonical.ah, 'home', 'away') || completePair(canonical.ht_ah, 'home', 'away');
+  const canonicalHasOu =
+    completePair(canonical.ou, 'over', 'under')
+    || completePair(canonical.ou_adjacent, 'over', 'under')
+    || completePairInArray(canonical.ou_extra, 'over', 'under')
+    || completePair(canonical.ht_ou, 'over', 'under')
+    || completePair(canonical.ht_ou_adjacent, 'over', 'under')
+    || completePairInArray(canonical.ht_ou_extra, 'over', 'under');
+  const canonicalHasAh =
+    completePair(canonical.ah, 'home', 'away')
+    || completePair(canonical.ah_adjacent, 'home', 'away')
+    || completePairInArray(canonical.ah_extra, 'home', 'away')
+    || completePair(canonical.ht_ah, 'home', 'away')
+    || completePair(canonical.ht_ah_adjacent, 'home', 'away')
+    || completePairInArray(canonical.ht_ah_extra, 'home', 'away');
   const canonicalHasBtts = completePair(canonical.btts, 'yes', 'no') || completePair(canonical.ht_btts, 'yes', 'no');
 
   return {
@@ -564,6 +579,8 @@ export interface PipelineExecutionOptions {
   applySettledReplayPolicy?: boolean;
   /** Replay/diagnostic only: mask derived league/team profile priors before prompt construction. */
   prematchProfileMode?: 'full' | 'none' | 'league-only' | 'team-only';
+  /** Manual/advisory pre-match only: fetch and persist missing strategic context before building the prompt. */
+  ensureStrategicContext?: boolean;
 }
 
 // ==================== Types ====================
@@ -950,6 +967,9 @@ export interface MatchPipelineResult {
     prematchAvailability?: PrematchFeatureAvailability;
     prematchNoisePenalty?: number | null;
     prematchStrength?: PrematchPriorStrength;
+    strategicContextOnDemandAttempted?: boolean;
+    strategicContextOnDemandApplied?: boolean;
+    strategicContextOnDemandError?: string;
     structuredPrematchAskAi?: boolean;
     structuredPrematchAskAiReason?: string;
     promptChars?: number;
@@ -1234,61 +1254,6 @@ function deriveEvidenceMode(
   }).evidenceMode;
 }
 
-function classifyProviderClockLagStatus(lagMinutes: number | null): ProviderClockLagStatus {
-  if (lagMinutes == null) return 'unknown';
-  if (lagMinutes >= 7) return 'critical';
-  if (lagMinutes >= 4) return 'degraded';
-  if (lagMinutes >= 2) return 'warning';
-  return 'ok';
-}
-
-function estimateProviderClockLag(args: {
-  fixture: ApiFixture;
-  status: string;
-  elapsed: number | null;
-  now?: Date;
-}): {
-  wallClockMinute: number | null;
-  providerClockLagMinutes: number | null;
-  providerClockLagStatus: ProviderClockLagStatus;
-} {
-  const normalizedStatus = String(args.status || '').trim().toUpperCase();
-  const liveStatuses = new Set(['1H', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT']);
-  if (!liveStatuses.has(normalizedStatus) || args.elapsed == null || !Number.isFinite(args.elapsed)) {
-    return { wallClockMinute: null, providerClockLagMinutes: null, providerClockLagStatus: 'unknown' };
-  }
-
-  const nowMs = (args.now ?? new Date()).getTime();
-  const firstPeriodSeconds = Number(args.fixture.fixture?.periods?.first);
-  const secondPeriodSeconds = Number(args.fixture.fixture?.periods?.second);
-  const kickoffSeconds = Number(args.fixture.fixture?.timestamp);
-  let wallClockMinute: number | null = null;
-
-  if (normalizedStatus === '2H' && Number.isFinite(secondPeriodSeconds) && secondPeriodSeconds > 0) {
-    wallClockMinute = 45 + Math.floor((nowMs - secondPeriodSeconds * 1000) / 60_000);
-  } else if (Number.isFinite(firstPeriodSeconds) && firstPeriodSeconds > 0) {
-    wallClockMinute = Math.floor((nowMs - firstPeriodSeconds * 1000) / 60_000);
-  } else if (Number.isFinite(kickoffSeconds) && kickoffSeconds > 0) {
-    const ageMinutes = Math.floor((nowMs - kickoffSeconds * 1000) / 60_000);
-    // Unit tests and replay fixtures can carry historical timestamps; avoid turning
-    // old fixture fixtures into false production clock-lag warnings.
-    if (ageMinutes >= 0 && ageMinutes <= 240) {
-      wallClockMinute = ageMinutes;
-    }
-  }
-
-  if (wallClockMinute == null || !Number.isFinite(wallClockMinute)) {
-    return { wallClockMinute: null, providerClockLagMinutes: null, providerClockLagStatus: 'unknown' };
-  }
-
-  const lagMinutes = Math.max(0, Math.floor(wallClockMinute - args.elapsed));
-  return {
-    wallClockMinute,
-    providerClockLagMinutes: lagMinutes,
-    providerClockLagStatus: classifyProviderClockLagStatus(lagMinutes),
-  };
-}
-
 function classifyProviderStatisticsCoverage(args: {
   statsRaw: ApiFixtureStat[];
   statsAvailable: boolean;
@@ -1312,11 +1277,18 @@ function buildProviderHealthSnapshot(args: {
   statisticsCacheStatus: string;
   eventsFreshness: string;
 }): ProviderHealthSnapshot {
-  const clock = estimateProviderClockLag({
-    fixture: args.fixture,
-    status: args.status,
-    elapsed: args.minute,
-  });
+  void args.fixture;
+  void args.status;
+  void args.minute;
+  // Do not infer live-clock delay from wall-clock time. API-Football period
+  // timestamps are not an independent broadcast clock, and normal stoppage time
+  // or provider cadence created false "provider is delayed" reasoning.
+  const clock: Pick<ProviderHealthSnapshot, 'providerClockLagMinutes' | 'providerClockLagStatus' | 'providerReportedMinute' | 'wallClockMinute'> = {
+    providerClockLagMinutes: null,
+    providerClockLagStatus: 'unknown',
+    providerReportedMinute: Number.isFinite(args.minute) ? args.minute : null,
+    wallClockMinute: null,
+  };
   const statisticsCoverage = classifyProviderStatisticsCoverage({
     statsRaw: args.statsRaw,
     statsAvailable: args.statsAvailable,
@@ -1347,7 +1319,7 @@ function buildProviderHealthSnapshot(args: {
     providerReturnedNoLiveStatistics,
     providerClockLagMinutes: clock.providerClockLagMinutes,
     providerClockLagStatus: clock.providerClockLagStatus,
-    providerReportedMinute: Number.isFinite(args.minute) ? args.minute : null,
+    providerReportedMinute: clock.providerReportedMinute,
     wallClockMinute: clock.wallClockMinute,
     fixtureFreshness: args.fixtureFreshness,
     statisticsFreshness: args.statisticsFreshness,
@@ -2582,6 +2554,16 @@ function buildEventsCompact(
 
 const MAX_LADDER_EXTRAS = 2;
 
+function isFootballAsianHandicapBetName(betName: string): boolean {
+  return betName.includes('asian handicap')
+    && !betName.includes('corner')
+    && !betName.includes('card')
+    && !betName.includes('yellow')
+    && !betName.includes('offside')
+    && !betName.includes('foul')
+    && !betName.includes('shot');
+}
+
 export interface BuildOddsCanonicalOptions {
   /** Full-time total goals — steers main goals O/U toward the next tradable line in-play. */
   totalGoalsFt?: number | null;
@@ -2677,7 +2659,7 @@ export function buildOddsCanonical(
       }
     }
 
-    if (!isCornerBet && betName.includes('handicap')) {
+    if (!isCornerBet && isFootballAsianHandicapBetName(betName)) {
       for (const v of values) {
         let raw = String(v.value || '').toLowerCase().trim();
         const hc = v.handicap ? String(v.handicap).trim() : '';
@@ -2694,7 +2676,10 @@ export function buildOddsCanonical(
           let side = m[1];
           if (side === '1') side = 'home';
           if (side === '2') side = 'away';
-          key = `${side} ${m[2]}`;
+          const parsedLine = Number(m[2]);
+          if (!Number.isFinite(parsedLine)) continue;
+          const canonicalInputLine = side === 'away' ? -parsedLine : parsedLine;
+          key = `${side} ${String(canonicalInputLine).replace(/^-0$/, '0')}`;
         }
         const slot = pk(key);
         if (!(slot in oddsMap) || odd > (oddsMap[slot] ?? 0)) oddsMap[slot] = odd;
@@ -4683,9 +4668,12 @@ async function processMatch(
     }));
 
     // 5. Build the central server-side prompt
-    const rawStrategicContext = watchlistEntry.strategic_context as Record<string, unknown> | null;
+    let rawStrategicContext = watchlistEntry.strategic_context as Record<string, unknown> | null;
+    let strategicContextOnDemandAttempted = false;
+    let strategicContextOnDemandApplied = false;
+    let strategicContextOnDemandError = '';
     const strategicRefreshStatus = String((rawStrategicContext?._meta as Record<string, unknown> | undefined)?.refresh_status ?? '').trim().toLowerCase();
-    const strategicContext = (
+    let strategicContext = (
       rawStrategicContext
       && strategicRefreshStatus === 'good'
       && hasUsableStrategicContext(rawStrategicContext as unknown as Parameters<typeof hasUsableStrategicContext>[0], {
@@ -4694,6 +4682,57 @@ async function processMatch(
     )
       ? rawStrategicContext
       : null;
+
+    const canEnsureStrategicContext = options.ensureStrategicContext === true
+      && analysisMode === 'manual_force'
+      && String(status ?? '').toUpperCase() === 'NS'
+      && leagueMeta?.top_league === true
+      && !strategicContext;
+    if (canEnsureStrategicContext) {
+      strategicContextOnDemandAttempted = true;
+      const attemptedAt = new Date().toISOString();
+      try {
+        const matchDateForResearch = fixture.fixture.date
+          || (fixture.fixture.timestamp ? new Date(fixture.fixture.timestamp * 1000).toISOString() : null);
+        const fetchedStrategicContext = await fetchStrategicContext(
+          homeName,
+          awayName,
+          league,
+          matchDateForResearch,
+          {
+            topLeague: true,
+            highPriority: true,
+            favoriteLeague: true,
+            leagueCountry: leagueMeta.country ?? null,
+          },
+        );
+        if (
+          fetchedStrategicContext
+          && hasUsableStrategicContext(fetchedStrategicContext, { topLeague: true })
+        ) {
+          rawStrategicContext = {
+            ...fetchedStrategicContext,
+            _meta: {
+              refresh_status: 'good',
+              failure_count: 0,
+              last_attempt_at: attemptedAt,
+              retry_after: null,
+              refresh_window: 'on_demand',
+            },
+          };
+          strategicContext = rawStrategicContext;
+          strategicContextOnDemandApplied = true;
+          await watchlistRepo.updateOperationalWatchlistEntry(matchId, {
+            strategic_context: rawStrategicContext as unknown,
+            strategic_context_at: attemptedAt,
+          }).catch((err) => {
+            strategicContextOnDemandError = err instanceof Error ? err.message : String(err);
+          });
+        }
+      } catch (err) {
+        strategicContextOnDemandError = err instanceof Error ? err.message : String(err);
+      }
+    }
     const prematchExpertFeatures = buildPrematchExpertFeaturesV1({
       strategicContext,
       leagueProfile: leagueProfile as Record<string, unknown> | null,
@@ -4725,6 +4764,96 @@ async function processMatch(
       prematchExpertFeatures,
     });
     const structuredPrematchAskAi = structuredPrematchAskAiCheck.eligible;
+    const strategicContextRequiredButUnavailable = options.ensureStrategicContext === true
+      && analysisMode === 'manual_force'
+      && String(status ?? '').toUpperCase() === 'NS'
+      && leagueMeta?.top_league === true
+      && strategicContextOnDemandAttempted
+      && !strategicContext;
+
+    if (strategicContextRequiredButUnavailable) {
+      const outputDecision = routeLiveOutput({
+        evidenceMode,
+        llmCalled: false,
+        llmEligibilityReason: 'strategic_context_unavailable',
+        advisoryOnly,
+        shadowMode,
+      });
+      if (!shadowMode && shouldSamplePipelineSkipAudit('strategic_context_unavailable', 'llm-eligibility', 20)) {
+        audit({
+          category: 'PIPELINE',
+          action: 'PIPELINE_MATCH_SKIPPED',
+          outcome: 'SKIPPED',
+          actor: 'auto-pipeline',
+          metadata: {
+            matchId,
+            matchDisplay,
+            reason: 'strategic_context_unavailable',
+            analysisMode,
+            evidenceMode,
+            strategicContextOnDemandAttempted,
+            strategicContextOnDemandApplied,
+            strategicContextOnDemandError: strategicContextOnDemandError || undefined,
+            outputKind: outputDecision.outputKind,
+            auditBucket: outputDecision.auditBucket,
+            outputDecision,
+            ...providerDebugMetadata,
+          },
+        });
+      }
+
+      return {
+        matchId,
+        matchDisplay,
+        homeName,
+        awayName,
+        league,
+        minute,
+        score,
+        status,
+        success: true,
+        decisionKind: 'no_bet',
+        shouldPush: false,
+        selection: '',
+        confidence: 0,
+        saved: false,
+        notified: false,
+        outputKind: outputDecision.outputKind,
+        auditBucket: outputDecision.auditBucket,
+        debug: {
+          analysisRunId,
+          shadowMode,
+          skippedAt: 'llm_eligibility',
+          skipReason: 'Strategic context unavailable after on-demand enrichment; skipped AI analysis to avoid an ungrounded LLM call.',
+          analysisMode,
+          oddsSource,
+          oddsAvailable,
+          statsAvailable,
+          statsSource,
+          evidenceMode,
+          prematchAvailability,
+          prematchNoisePenalty,
+          prematchStrength,
+          strategicContextOnDemandAttempted,
+          strategicContextOnDemandApplied,
+          strategicContextOnDemandError: strategicContextOnDemandError || undefined,
+          structuredPrematchAskAi,
+          structuredPrematchAskAiReason: structuredPrematchAskAiCheck.reason,
+          statsFallbackUsed,
+          statsFallbackReason: statsFallbackReason || undefined,
+          ...providerDebugMetadata,
+          outputDecision,
+          outputKind: outputDecision.outputKind,
+          auditBucket: outputDecision.auditBucket,
+          savedRecommendation: outputDecision.savedRecommendation,
+          settlementEligible: outputDecision.settlementEligible,
+          roiEligible: outputDecision.roiEligible,
+          llmCalled: outputDecision.llmCalled,
+          preLlmLatencyMs: Date.now() - startedAt,
+          totalLatencyMs: Date.now() - startedAt,
+        },
+      };
+    }
 
     if (evidenceMode === 'low_evidence' && !structuredPrematchAskAi) {
       const outputDecision = routeLiveOutput({
@@ -4799,6 +4928,9 @@ async function processMatch(
           prematchAvailability,
           prematchNoisePenalty,
           prematchStrength,
+          strategicContextOnDemandAttempted,
+          strategicContextOnDemandApplied,
+          strategicContextOnDemandError: strategicContextOnDemandError || undefined,
           structuredPrematchAskAi,
           structuredPrematchAskAiReason: structuredPrematchAskAiCheck.reason,
           statsFallbackUsed,
@@ -5881,6 +6013,9 @@ async function processMatch(
         prematchAvailability,
         prematchNoisePenalty,
         prematchStrength,
+        strategicContextOnDemandAttempted,
+        strategicContextOnDemandApplied,
+        strategicContextOnDemandError: strategicContextOnDemandError || undefined,
         structuredPrematchAskAi,
         structuredPrematchAskAiReason: structuredPrematchAskAiCheck.reason,
         promptChars: activeAnalysis.promptChars,
@@ -5974,6 +6109,8 @@ export async function runPromptOnlyAnalysisForMatch(
     userQuestion?: string;
     followUpHistory?: FollowUpHistoryEntry[];
     advisoryOnly?: boolean;
+    sampleProviderData?: boolean;
+    ensureStrategicContext?: boolean;
   } = {},
 ): Promise<{ text: string; prompt: string; result: MatchPipelineResult }> {
   const [fixture, watchlistEntry] = await Promise.all([
@@ -5990,7 +6127,7 @@ export async function runPromptOnlyAnalysisForMatch(
 
   const result = await runPipelineForFixture(matchId, fixture, watchlistEntry, {
     shadowMode: true,
-    sampleProviderData: false,
+    sampleProviderData: options.sampleProviderData === true,
     forceAnalyze: options.forceAnalyze,
     skipProceedGate: true,
     skipStalenessGate: true,
@@ -5999,6 +6136,7 @@ export async function runPromptOnlyAnalysisForMatch(
     userQuestion: options.userQuestion,
     followUpHistory: options.followUpHistory,
     advisoryOnly: options.advisoryOnly,
+    ensureStrategicContext: options.ensureStrategicContext,
   });
 
   const prompt = result.debug?.prompt;
@@ -6026,6 +6164,7 @@ export async function runManualAnalysisForMatch(
     userQuestion?: string;
     followUpHistory?: FollowUpHistoryEntry[];
     advisoryOnly?: boolean;
+    ensureStrategicContext?: boolean;
   } = {},
 ): Promise<MatchPipelineResult> {
   const [fixture, watchlistEntry] = await Promise.all([
@@ -6048,6 +6187,7 @@ export async function runManualAnalysisForMatch(
     userQuestion: options.userQuestion,
     followUpHistory: options.followUpHistory,
     advisoryOnly: options.advisoryOnly,
+    ensureStrategicContext: options.ensureStrategicContext,
   });
 }
 

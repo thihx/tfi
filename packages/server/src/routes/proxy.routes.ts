@@ -214,6 +214,8 @@ export async function proxyRoutes(app: FastifyInstance) {
               userQuestion: advisoryOnly ? question?.trim() : undefined,
               followUpHistory: Array.isArray(history) ? history.filter((entry) => entry && (entry.role === 'user' || entry.role === 'assistant') && typeof entry.text === 'string') : undefined,
               advisoryOnly,
+              ensureStrategicContext: true,
+              ...(advisoryOnly ? { sampleProviderData: true } : {}),
             })
             : null;
           const text = typeof prompt === 'string' && prompt.trim()

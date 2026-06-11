@@ -2,7 +2,7 @@
 // Integration tests — Watchlist routes
 // ============================================================
 
-import { describe, test, expect, vi, beforeAll, afterAll } from 'vitest';
+import { describe, test, expect, vi, beforeAll, beforeEach, afterAll } from 'vitest';
 import { buildApp } from './helpers.js';
 import type { FastifyInstance } from 'fastify';
 
@@ -65,6 +65,10 @@ vi.mock('../repos/watchlist.repo.js', () => ({
   ),
   incrementChecks: vi.fn().mockResolvedValue(undefined),
   expireOldEntries: vi.fn().mockResolvedValue(5),
+}));
+
+vi.mock('../jobs/enrich-watchlist.job.js', () => ({
+  setForceEnrich: vi.fn(),
 }));
 
 vi.mock('../repos/settings.repo.js', () => ({
@@ -146,6 +150,10 @@ beforeAll(async () => {
   const { watchlistRoutes } = await import('../routes/watchlist.routes.js');
   app = await buildApp([watchlistRoutes], { currentUser: MEMBER_USER });
   adminApp = await buildApp([watchlistRoutes], { currentUser: ADMIN_USER });
+});
+
+beforeEach(() => {
+  vi.clearAllMocks();
 });
 
 afterAll(async () => {
@@ -292,6 +300,8 @@ describe('POST /api/me/watch-subscriptions/evaluate-condition', () => {
 
 describe('POST /api/me/watch-subscriptions', () => {
   test('creates a subscription through the design-aligned path', async () => {
+    const enrichJob = await import('../jobs/enrich-watchlist.job.js');
+
     const res = await app.inject({
       method: 'POST',
       url: '/api/me/watch-subscriptions',
@@ -299,6 +309,7 @@ describe('POST /api/me/watch-subscriptions', () => {
     });
     expect(res.statusCode).toBe(201);
     expect(res.json().match_id).toBe('300');
+    expect(enrichJob.setForceEnrich).toHaveBeenCalledTimes(1);
   });
 
   test('returns an entitlement error when active watchlist capacity is exhausted', async () => {
@@ -354,6 +365,7 @@ describe('favorite leagues watchlist automation', () => {
   test('saves selection and adds eligible matches from Matches pool into watchlist', async () => {
     const watchlistRepo = await import('../repos/watchlist.repo.js');
     const settingsRepo = await import('../repos/settings.repo.js');
+    const enrichJob = await import('../jobs/enrich-watchlist.job.js');
 
     const res = await app.inject({
       method: 'PUT',
@@ -380,6 +392,7 @@ describe('favorite leagues watchlist automation', () => {
       ]),
       'member-1',
     );
+    expect(enrichJob.setForceEnrich).toHaveBeenCalledTimes(1);
   });
 
   test('rejects non-system leagues', async () => {

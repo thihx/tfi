@@ -646,17 +646,6 @@ function getEvidenceTierRule(data: LiveAnalysisPromptInput): EvidenceTierRule {
 
 function buildProviderEvidenceNote(data: LiveAnalysisPromptInput): string {
   const lines: string[] = [];
-  const warnings = Array.isArray(data.providerWarnings) ? data.providerWarnings : [];
-  const clockLag = typeof data.providerClockLagMinutes === 'number'
-    && Number.isFinite(data.providerClockLagMinutes)
-    ? data.providerClockLagMinutes
-    : null;
-  if (clockLag != null && clockLag >= 2) {
-    lines.push(`- Provider clock note: live feed appears delayed by about ${clockLag}m versus wall-clock match time. Treat timing-sensitive markets conservatively.`);
-    lines.push('- User-facing wording: say "provider live clock appears delayed"; do not present provider minute as guaranteed broadcast time.');
-  } else if (warnings.includes('provider_clock_lag') || warnings.includes('provider_clock_lag_high') || warnings.includes('provider_clock_lag_critical')) {
-    lines.push('- Provider clock note: live feed may be delayed versus wall-clock match time. Treat timing-sensitive markets conservatively.');
-  }
 
   if (data.statsAvailable) return lines.join('\n');
 

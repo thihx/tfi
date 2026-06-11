@@ -17,11 +17,13 @@ import {
 import { toAuthUserResponse } from '../lib/request-user.js';
 import { mergeAskAiQuickPromptsByLocale } from '../lib/ask-ai-quick-prompts-settings.js';
 import { clearLiveStreamLookupCache, probeLiveStreamProviders } from '../lib/live-stream-locator.js';
+import { filterLiveStreamSourcesForRegion, normalizeCountryCode } from '../lib/live-stream-region.js';
 import {
   loadLiveStreamLocatorSettings,
   normalizeLiveStreamLocatorSettingsPatch,
   resolveLiveStreamLocatorSettings,
   validateLiveStreamProviderUrls,
+  validateLiveStreamSources,
 } from '../lib/live-stream-settings.js';
 import {
   extractSelfServiceNotificationPatch,
@@ -163,26 +165,61 @@ export async function settingsRoutes(app: FastifyInstance) {
     return resolveLiveStreamLocatorSettings(merged);
   });
 
-  app.post<{ Body: { providerUrls?: unknown; timeoutMs?: unknown } }>(
+  app.post<{ Body: { providerUrls?: unknown; sources?: unknown; country?: unknown; timeoutMs?: unknown } }>(
     '/api/settings/live-stream-locator/test-providers',
     async (req, reply) => {
       const user = requireAdminOrOwner(req, reply);
       if (!user) return;
 
-      const validated = validateLiveStreamProviderUrls(req.body?.providerUrls);
-      if (validated.error) {
-        return reply.status(400).send({ error: validated.error });
+      const settings = await loadLiveStreamLocatorSettings();
+      const targetCountry = req.body?.country == null || req.body.country === ''
+        ? null
+        : normalizeCountryCode(req.body.country);
+      if (req.body?.country != null && req.body.country !== '' && (!targetCountry || targetCountry === '*')) {
+        return reply.status(400).send({ error: `Invalid live stream country code: ${String(req.body.country)}` });
       }
-      if (validated.urls.length === 0) {
+
+      let sourceInputs = settings.sources;
+      if (req.body?.sources !== undefined) {
+        const validatedSources = validateLiveStreamSources(req.body.sources);
+        if (validatedSources.error) return reply.status(400).send({ error: validatedSources.error });
+        sourceInputs = validatedSources.sources;
+      } else if (req.body?.providerUrls !== undefined) {
+        const validated = validateLiveStreamProviderUrls(req.body.providerUrls);
+        if (validated.error) return reply.status(400).send({ error: validated.error });
+        sourceInputs = validated.urls.map((url, index) => ({
+          id: `probe-${index + 1}`,
+          name: new URL(url).hostname.toLowerCase().replace(/^www\./, ''),
+          url,
+          countries: ['*'],
+          priority: 100 + index,
+          active: true,
+          sourceType: 'provider_homepage' as const,
+        }));
+      }
+
+      const probeSources = targetCountry
+        ? filterLiveStreamSourcesForRegion(sourceInputs, { country: targetCountry, source: 'override', confidence: 'high' }, settings.regionFiltering)
+        : sourceInputs.filter((source) => source.active);
+
+      if (probeSources.length === 0) {
         return reply.status(400).send({ error: 'Add at least one provider URL to test.' });
       }
 
-      const settings = await loadLiveStreamLocatorSettings();
       const timeoutMs = typeof req.body?.timeoutMs === 'number' && Number.isInteger(req.body.timeoutMs)
         ? Math.min(15_000, Math.max(500, req.body.timeoutMs))
         : settings.timeoutMs;
 
-      const results = await probeLiveStreamProviders(validated.urls, { timeoutMs });
+      const probeResults = await probeLiveStreamProviders(probeSources.map((source) => source.url), { timeoutMs });
+      const results = probeResults.map((result, index) => {
+        const source = probeSources[index]!;
+        return {
+          ...result,
+          sourceId: source.id,
+          countries: source.countries,
+          regionEligible: true,
+        };
+      });
       return { results, checkedAt: new Date().toISOString() };
     },
   );

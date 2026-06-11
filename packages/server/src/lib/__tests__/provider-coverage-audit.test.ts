@@ -27,7 +27,7 @@ describe('provider coverage audit', () => {
               ],
             },
             {
-              name: 'Handicap Result',
+              name: 'Asian Handicap',
               values: [
                 { value: 'Home', odd: '1.90', handicap: '-0.25' },
                 { value: 'Away', odd: '1.95', handicap: '+0.25' },
@@ -141,6 +141,41 @@ describe('provider coverage audit', () => {
     }));
   });
 
+  test('counts adjacent and extra canonical ladder lines as O/U and AH coverage', () => {
+    const flags = buildProviderOddsCoverageFlags([{
+      bookmakers: [{
+        name: 'Live Odds',
+        bets: [
+          {
+            name: 'Goals Over/Under',
+            values: [
+              { value: 'Over', odd: '9.00', handicap: '2.5' },
+              { value: 'Under', odd: '9.00', handicap: '2.5' },
+              { value: 'Over', odd: '1.90', handicap: '3.5' },
+              { value: 'Under', odd: '1.95', handicap: '3.5' },
+            ],
+          },
+          {
+            name: 'Asian Handicap',
+            values: [
+              { value: 'Home', odd: '1.88', handicap: '-0.25' },
+              { value: 'Away', odd: '1.95', handicap: '+0.25' },
+              { value: 'Home', odd: '1.90', handicap: '-0.75' },
+              { value: 'Away', odd: '1.95', handicap: '+0.75' },
+            ],
+          },
+        ],
+      }],
+    }]);
+
+    expect(flags).toEqual(expect.objectContaining({
+      raw_has_ou: true,
+      raw_has_ah: true,
+      canonical_has_ou: true,
+      canonical_has_ah: true,
+    }));
+  });
+
   test('summarizes mismatches and examples', () => {
     const results = [
       auditOddsCoverageSample({
@@ -163,7 +198,7 @@ describe('provider coverage audit', () => {
         normalizedPayload: [{
           bookmakers: [{
             bets: [{
-              name: 'Handicap Result',
+              name: 'Asian Handicap',
               values: [
                 { value: 'Home', odd: '1.90', handicap: '-0.25' },
                 { value: 'Away', odd: '1.95', handicap: '+0.25' },

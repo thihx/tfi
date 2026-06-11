@@ -15,7 +15,7 @@ npm run migrate --prefix packages/server
 Start UAT/PRD with:
 
 ```env
-AI_GATEWAY_MODE=observe
+AI_GATEWAY_MODE=enforce
 AI_GATEWAY_MAX_INPUT_TOKENS=80000
 AI_GATEWAY_MAX_ESTIMATED_COST_USD_PER_CALL=0.5
 AI_GATEWAY_LOOP_WINDOW_MINUTES=5
@@ -23,11 +23,11 @@ AI_GATEWAY_LOOP_CALL_THRESHOLD=6
 AI_GATEWAY_ALERTS_ENABLED=true
 ```
 
-Move to `AI_GATEWAY_MODE=enforce` only after Ops confirms threshold behavior in UAT.
+Use `AI_GATEWAY_MODE=observe` only for an intentional debugging window where calls should be logged but not blocked.
 
 ## Emergency Controls
 
-These kill switches block matching calls even when the gateway is in observe mode:
+These kill switches block matching calls in both enforce and observe mode:
 
 ```env
 AI_GATEWAY_DISABLED_FEATURES=tfi.live_recommendation

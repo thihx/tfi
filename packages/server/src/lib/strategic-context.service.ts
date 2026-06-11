@@ -13,6 +13,7 @@ import {
   generateGeminiContent as requestGeminiContent,
   type GeminiGenerateOptions,
 } from './gemini.js';
+import { AiGatewayBlockedError } from './ai-gateway.js';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
@@ -2108,6 +2109,7 @@ export async function fetchStrategicContext(
         grounded = await fetchGroundedResearchDraft(homeTeam, awayTeam, league, dateStr, options);
         if (grounded) break;
       } catch (err) {
+        if (err instanceof AiGatewayBlockedError) throw err;
         groundedError = err;
       }
     }

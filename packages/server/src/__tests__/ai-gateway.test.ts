@@ -79,26 +79,26 @@ describe('ai gateway', () => {
     expect(result.reason).toBe('kill_switch');
   });
 
-  test('token threshold observes by default and blocks in enforce mode', async () => {
+  test('token threshold blocks by default and observes only when explicitly configured', async () => {
     process.env['AI_GATEWAY_MAX_INPUT_TOKENS'] = '1';
 
+    const enforceDefault = await evaluateAiGatewayRequest('123456789', {
+      model: 'gemini-3.5-flash',
+      operation: 'tfi.manual_match_analysis',
+      featureKey: 'tfi.ai_observation',
+    });
+
+    process.env['AI_GATEWAY_MODE'] = 'observe';
     const observe = await evaluateAiGatewayRequest('123456789', {
       model: 'gemini-3.5-flash',
       operation: 'tfi.manual_match_analysis',
       featureKey: 'tfi.ai_observation',
     });
 
-    process.env['AI_GATEWAY_MODE'] = 'enforce';
-    const enforce = await evaluateAiGatewayRequest('123456789', {
-      model: 'gemini-3.5-flash',
-      operation: 'tfi.manual_match_analysis',
-      featureKey: 'tfi.ai_observation',
-    });
-
+    expect(enforceDefault.allowed).toBe(false);
+    expect(enforceDefault.reason).toBe('input_token_limit_exceeded');
     expect(observe.allowed).toBe(true);
     expect(observe.reason).toBe('input_token_limit_exceeded');
-    expect(enforce.allowed).toBe(false);
-    expect(enforce.reason).toBe('input_token_limit_exceeded');
   });
 
   test('incident alerts fan out to admin web push channels', async () => {

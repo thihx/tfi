@@ -201,7 +201,7 @@ Recommended production safety keys:
 - `FOOTBALL_API_CIRCUIT_ENABLED=true`
 - quota-tuned job intervals from `.env.azure.example`
 - `ALLOW_EXPENSIVE_GEMINI_MODELS=false`
-- `AI_GATEWAY_MODE=observe` until UAT confirms control-plane behavior
+- `AI_GATEWAY_MODE=enforce` for production cost control
 - `AI_GATEWAY_ALERTS_ENABLED=true`
 
 Non-local startup guard:

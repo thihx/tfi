@@ -92,7 +92,7 @@ function estimateCostUsd(model: string, inputTokens: number, outputTokens: numbe
 }
 
 function effectiveMode(): AiGatewayMode {
-  const raw = String(process.env['AI_GATEWAY_MODE'] || 'observe').trim().toLowerCase();
+  const raw = String(process.env['AI_GATEWAY_MODE'] || 'enforce').trim().toLowerCase();
   if (raw === 'off' || raw === 'disabled') return 'off';
   if (raw === 'enforce') return 'enforce';
   return 'observe';

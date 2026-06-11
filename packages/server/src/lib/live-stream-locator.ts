@@ -1,6 +1,6 @@
 import { config } from '../config.js';
 import type { MatchRow } from '../repos/matches.repo.js';
-import { validateLiveStreamProviderUrls } from './live-stream-settings.js';
+import { validateLiveStreamProviderUrls, type LiveStreamSource, type LiveStreamSourceType } from './live-stream-settings.js';
 import { expandTeamAliases } from './live-stream-team-aliases.js';
 import { mentionsMatchWithContext as matchWithContextSignals } from './live-stream-match-signals.js';
 
@@ -10,14 +10,19 @@ export interface LiveStreamProvider {
   name: string;
   url: string;
   hostname: string;
+  sourceId?: string;
+  countries?: string[];
+  sourceType?: LiveStreamSourceType;
 }
 
 export type LiveStreamLinkVerificationStatus = 'team_match' | 'reachable';
 
 export interface LiveStreamLink {
   url: string;
+  sourceId?: string;
   sourceName: string;
   sourceUrl: string;
+  countries?: string[];
   title: string;
   verificationStatus: LiveStreamLinkVerificationStatus;
   liveHint: boolean;
@@ -137,9 +142,33 @@ export function parseLiveStreamProviderUrls(urls: readonly string[] = config.liv
         name: hostname,
         url: parsed.toString(),
         hostname,
+        sourceType: 'provider_homepage',
       });
     } catch {
       // Ignore invalid allowlist entries. The server config is the source of truth.
+    }
+  }
+  return [...providers.values()];
+}
+
+export function parseLiveStreamSourcesAsProviders(sources: readonly LiveStreamSource[]): LiveStreamProvider[] {
+  const providers = new Map<string, LiveStreamProvider>();
+  for (const source of sources) {
+    try {
+      const parsed = new URL(source.url);
+      if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') continue;
+      parsed.hash = '';
+      const hostname = normalizeHostname(parsed.hostname);
+      providers.set(source.id, {
+        name: source.name || hostname,
+        url: parsed.toString(),
+        hostname,
+        sourceId: source.id,
+        countries: [...source.countries],
+        sourceType: source.sourceType,
+      });
+    } catch {
+      // Settings validation should prevent this; ignore corrupted persisted rows defensively.
     }
   }
   return [...providers.values()];
@@ -482,8 +511,10 @@ async function findStreamsInPages(
       linksByUrl.set(anchor.url, {
         base: {
           url: anchor.url,
+          sourceId: page.provider.sourceId,
           sourceName: page.provider.name,
           sourceUrl: page.provider.url,
+          countries: page.provider.countries,
           title: anchor.text || `${match.home_team} vs ${match.away_team}`,
         },
         html: pages.find((candidate) => candidate.url === anchor.url)?.html ?? null,
@@ -500,8 +531,10 @@ async function findStreamsInPages(
       linksByUrl.set(url, {
         base: {
           url,
+          sourceId: page.provider.sourceId,
           sourceName: page.provider.name,
           sourceUrl: page.provider.url,
+          countries: page.provider.countries,
           title: `${structured.homeName} vs ${structured.awayName}`,
         },
         html: pages.find((candidate) => candidate.url === url)?.html ?? null,
@@ -516,8 +549,10 @@ async function findStreamsInPages(
     linksByUrl.set(page.url, {
       base: {
         url: page.url,
+        sourceId: page.provider.sourceId,
         sourceName: page.provider.name,
         sourceUrl: page.provider.url,
+        countries: page.provider.countries,
         title: `${match.home_team} vs ${match.away_team}`,
       },
       html: page.html,

@@ -370,6 +370,27 @@ describe('prematch profile sync helpers', () => {
     expect(deriveLeagueProfileFromHistory(rows, __testables__.INTERNATIONAL_PROFILE_POLICY)).not.toBeNull();
   });
 
+  test('derives international tournament league profile from participating team samples when direct league history is absent', () => {
+    const samples = [
+      { goalsFor: 2, goalsAgainst: 0, isHome: true, matchDate: '2026-06-01', cornersFor: 6, cornersAgainst: 3, cards: 1, scoredFirst: true, hadGoalAfter75: false },
+      { goalsFor: 1, goalsAgainst: 1, isHome: false, matchDate: '2026-06-02', cornersFor: 5, cornersAgainst: 4, cards: 2, scoredFirst: false, hadGoalAfter75: true },
+      { goalsFor: 3, goalsAgainst: 1, isHome: true, matchDate: '2026-06-03', cornersFor: 7, cornersAgainst: 4, cards: 1, scoredFirst: true, hadGoalAfter75: true },
+      { goalsFor: 0, goalsAgainst: 1, isHome: false, matchDate: '2026-06-04', cornersFor: 4, cornersAgainst: 5, cards: 2, scoredFirst: false, hadGoalAfter75: false },
+    ];
+
+    const profile = __testables__.deriveLeagueProfileFromTeamPerspectives(
+      samples,
+      __testables__.INTERNATIONAL_PROFILE_POLICY,
+    );
+
+    expect(profile).not.toBeNull();
+    expect(profile?.avg_goals).toBe(2.25);
+    expect(profile?.btts_rate).toBe(0.5);
+    expect(profile?.home_advantage_tier).toBe('balanced');
+    expect(profile?.late_goal_rate_75_plus).toBe(0.5);
+    expect(profile?.data_reliability_tier).toBe('low');
+  });
+
   test('skips heavy history backfill when recent rows with team ids are already present', () => {
     expect(__testables__.hasFreshEnoughHistoryCoverage({
       league_id: 32,

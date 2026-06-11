@@ -152,6 +152,12 @@ export const config = {
   liveStreamLocatorTimeoutMs: Number(process.env['LIVE_STREAM_LOCATOR_TIMEOUT_MS'] || 3500),
   liveStreamLocatorCacheTtlMs: Number(process.env['LIVE_STREAM_LOCATOR_CACHE_TTL_MS'] || 3 * 60_000),
   liveStreamLocatorMaxMatches: Number(process.env['LIVE_STREAM_LOCATOR_MAX_MATCHES'] || 30),
+  liveStreamRegionEnabled: process.env['LIVE_STREAM_REGION_ENABLED'] !== 'false',
+  liveStreamRegionUnknownPolicy: process.env['LIVE_STREAM_REGION_UNKNOWN_POLICY'] || 'global_only',
+  liveStreamTrustCfIpCountry: process.env['LIVE_STREAM_TRUST_CF_IPCOUNTRY'] !== 'false',
+  liveStreamTrustedCountryHeader: process.env['LIVE_STREAM_TRUSTED_COUNTRY_HEADER'] || '',
+  liveStreamDevCountryOverride: process.env['LIVE_STREAM_DEV_COUNTRY_OVERRIDE'] || '',
+  liveStreamGeoipCountryMap: process.env['LIVE_STREAM_GEOIP_COUNTRY_MAP'] || '',
 
   // Auto pipeline
   pipelineEnabled: process.env['PIPELINE_ENABLED'] !== 'false',          // auto-trigger AI for live matches

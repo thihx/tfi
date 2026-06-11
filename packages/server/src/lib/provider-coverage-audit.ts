@@ -48,10 +48,29 @@ function deriveCanonicalFlags(canonical: Record<string, unknown>): Record<string
     const row = value as Record<string, unknown> | null;
     return row?.[first] != null && row[second] != null;
   };
+  const hasCompletePairInArray = (
+    value: unknown,
+    first: 'over' | 'home',
+    second: 'under' | 'away',
+  ): boolean => (
+    Array.isArray(value) && value.some((row) => hasCompletePair(row, first, second))
+  );
   return {
     has_1x2: hasComplete1x2(canonical['1x2']),
-    has_ou: hasCompletePair(canonical.ou, 'over', 'under') || hasCompletePair(canonical.ht_ou, 'over', 'under'),
-    has_ah: hasCompletePair(canonical.ah, 'home', 'away') || hasCompletePair(canonical.ht_ah, 'home', 'away'),
+    has_ou:
+      hasCompletePair(canonical.ou, 'over', 'under')
+      || hasCompletePair(canonical.ou_adjacent, 'over', 'under')
+      || hasCompletePairInArray(canonical.ou_extra, 'over', 'under')
+      || hasCompletePair(canonical.ht_ou, 'over', 'under')
+      || hasCompletePair(canonical.ht_ou_adjacent, 'over', 'under')
+      || hasCompletePairInArray(canonical.ht_ou_extra, 'over', 'under'),
+    has_ah:
+      hasCompletePair(canonical.ah, 'home', 'away')
+      || hasCompletePair(canonical.ah_adjacent, 'home', 'away')
+      || hasCompletePairInArray(canonical.ah_extra, 'home', 'away')
+      || hasCompletePair(canonical.ht_ah, 'home', 'away')
+      || hasCompletePair(canonical.ht_ah_adjacent, 'home', 'away')
+      || hasCompletePairInArray(canonical.ht_ah_extra, 'home', 'away'),
     has_btts: hasCompletePair(canonical.btts, 'yes', 'no') || hasCompletePair(canonical.ht_btts, 'yes', 'no'),
   };
 }
@@ -90,6 +109,16 @@ function normalizeBetName(value: unknown): string {
   return String(value ?? '').toLowerCase().trim();
 }
 
+function isFootballAsianHandicapBetName(name: string): boolean {
+  return name.includes('asian handicap')
+    && !name.includes('corner')
+    && !name.includes('card')
+    && !name.includes('yellow')
+    && !name.includes('offside')
+    && !name.includes('foul')
+    && !name.includes('shot');
+}
+
 function isMarketBet(kind: MarketKind, name: string): boolean {
   if (kind !== 'btts' && name.includes('corner')) return false;
   if (kind === '1x2') {
@@ -106,7 +135,7 @@ function isMarketBet(kind: MarketKind, name: string): boolean {
       || name.includes('match goals')
       || (name.includes('goals') && (name.includes('over') || name.includes('under')));
   }
-  if (kind === 'ah') return name.includes('handicap');
+  if (kind === 'ah') return isFootballAsianHandicapBetName(name);
   return name.includes('both teams') || name === 'btts' || name.includes('both teams to score');
 }
 

@@ -6,6 +6,11 @@ import { describe, test, expect, vi, beforeAll, afterAll } from 'vitest';
 import { buildApp } from './helpers.js';
 import type { FastifyInstance } from 'fastify';
 
+vi.mock('../repos/settings.repo.js', () => ({
+  getSettings: vi.fn().mockResolvedValue({}),
+  saveSettings: vi.fn(),
+}));
+
 vi.mock('../repos/matches.repo.js', () => ({
   getAllMatches: vi.fn().mockResolvedValue([
     { match_id: '1', home_team: 'Arsenal', away_team: 'Chelsea', status: 'NS', league_id: 39 },
@@ -24,7 +29,7 @@ vi.mock('../repos/matches.repo.js', () => ({
     return Promise.resolve(all.filter((m) => statuses.includes(m.status)));
   }),
   getMatchesByIds: vi.fn().mockImplementation((ids: string[]) =>
-    Promise.resolve(ids.map((id) => ({ match_id: id, home_team: 'Team A', away_team: 'Team B' }))),
+    Promise.resolve(ids.map((id) => ({ match_id: id, home_team: 'Team A', away_team: 'Team B', status: '1H' }))),
   ),
   replaceAllMatches: vi.fn().mockImplementation((rows: unknown[]) => Promise.resolve(rows.length)),
   updateMatches: vi.fn().mockImplementation((rows: unknown[]) => Promise.resolve(rows.length)),
@@ -89,6 +94,91 @@ describe('POST /api/matches/by-ids', () => {
     });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toHaveLength(3);
+  });
+});
+
+describe('POST /api/matches/live-streams/lookup', () => {
+  test('filters live stream sources by viewer country before lookup', async () => {
+    const settingsRepo = await import('../repos/settings.repo.js');
+    vi.mocked(settingsRepo.getSettings).mockResolvedValueOnce({
+      LIVE_STREAM_LOCATOR_ENABLED: true,
+      LIVE_STREAM_SOURCES: [
+        {
+          id: 'vn-source',
+          name: 'Vietnam Source',
+          url: 'https://vn.example/',
+          countries: ['VN'],
+          priority: 10,
+          active: true,
+          sourceType: 'provider_homepage',
+        },
+        {
+          id: 'kr-source',
+          name: 'Korea Source',
+          url: 'https://kr.example/',
+          countries: ['KR'],
+          priority: 10,
+          active: true,
+          sourceType: 'provider_homepage',
+        },
+        {
+          id: 'global-source',
+          name: 'Global Source',
+          url: 'https://global.example/',
+          countries: ['*'],
+          priority: 100,
+          active: true,
+          sourceType: 'provider_homepage',
+        },
+      ],
+      LIVE_STREAM_REGION_ENABLED: true,
+      LIVE_STREAM_REGION_UNKNOWN_POLICY: 'global_only',
+      LIVE_STREAM_LOCATOR_CACHE_TTL_MS: 15000,
+    });
+
+    const fetchMock = vi.fn(async (url: string | URL) => {
+      const href = String(url);
+      if (href === 'https://vn.example/') {
+        return new Response('<a href="/team-a-team-b">Team A vs Team B live</a>', { status: 200 });
+      }
+      if (href === 'https://vn.example/team-a-team-b') {
+        return new Response('<main>Team A vs Team B stream player live</main>', { status: 200 });
+      }
+      if (href === 'https://global.example/') {
+        return new Response('<main>No matching stream</main>', { status: 200 });
+      }
+      return new Response('unexpected', { status: 500 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/matches/live-streams/lookup',
+      headers: { 'cf-ipcountry': 'VN' },
+      payload: { matchIds: ['100'] },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({
+      viewerRegion: { country: 'VN', source: 'cloudflare', confidence: 'high' },
+      results: [
+        {
+          matchId: '100',
+          found: true,
+          sourceName: 'Vietnam Source',
+          links: [
+            expect.objectContaining({
+              sourceId: 'vn-source',
+              countries: ['VN'],
+              sourceName: 'Vietnam Source',
+            }),
+          ],
+        },
+      ],
+    });
+    expect(fetchMock).not.toHaveBeenCalledWith('https://kr.example/', expect.anything());
+
+    vi.unstubAllGlobals();
   });
 });
 

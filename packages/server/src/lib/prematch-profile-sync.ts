@@ -72,7 +72,7 @@ interface ExistingHistoryCoverageRow {
   latest_date: string | null;
 }
 
-interface TeamMatchPerspective {
+export interface TeamMatchPerspective {
   goalsFor: number;
   goalsAgainst: number;
   isHome: boolean;
@@ -483,6 +483,46 @@ export function deriveLeagueProfileFromHistory(
     late_goal_rate_75_plus: round(lateGoalRate, 3),
     avg_corners: round(avgCorners, 2),
     avg_cards: round(avgCards, 2),
+  };
+}
+
+export function deriveLeagueProfileFromTeamPerspectives(
+  rows: TeamMatchPerspective[],
+  policy: ProfileDerivationPolicy = INTERNATIONAL_PROFILE_POLICY,
+): LeagueProfileData | null {
+  const matches = rows.length;
+  if (matches < policy.leagueMinMatches) return null;
+
+  const totalGoals = rows.map((row) => row.goalsFor + row.goalsAgainst);
+  const avgGoals = average(totalGoals);
+  const over25 = rate(rows.filter((row) => row.goalsFor + row.goalsAgainst >= 3).length, matches);
+  const btts = rate(rows.filter((row) => row.goalsFor > 0 && row.goalsAgainst > 0).length, matches);
+  const totalGoalsStd = standardDeviation(totalGoals);
+  const corners = rows
+    .map((row) => row.cornersFor != null && row.cornersAgainst != null ? row.cornersFor + row.cornersAgainst : null)
+    .filter((value): value is number => value != null);
+  const cards = rows
+    .map((row) => row.cards != null ? row.cards * 2 : null)
+    .filter((value): value is number => value != null);
+  const lateGoalSamples = rows.filter((row) => row.hadGoalAfter75 != null);
+  const lateGoalRate = hasSufficientCoverage(lateGoalSamples.length, matches, policy.leagueEventSummaryMinCount)
+    ? rate(lateGoalSamples.filter((row) => row.hadGoalAfter75 === true).length, lateGoalSamples.length)
+    : null;
+
+  return {
+    tempo_tier: clampTier(avgGoals, { low: 2.2, high: 3.0 }),
+    goal_tendency: clampTier(over25, { low: 0.45, high: 0.58 }),
+    home_advantage_tier: 'balanced',
+    corners_tendency: clampTier(average(corners), { low: 8.5, high: 10.5 }),
+    cards_tendency: clampTier(average(cards), { low: 3.4, high: 4.6 }),
+    volatility_tier: clampTier(totalGoalsStd, { low: 1.1, high: 1.6 }),
+    data_reliability_tier: reliabilityTierFromMatches(matches),
+    avg_goals: round(avgGoals, 2),
+    over_2_5_rate: round(over25, 3),
+    btts_rate: round(btts, 3),
+    late_goal_rate_75_plus: round(lateGoalRate, 3),
+    avg_corners: round(average(corners), 2),
+    avg_cards: round(average(cards), 2),
   };
 }
 
@@ -940,6 +980,7 @@ export async function syncDerivedPrematchProfiles(
   const historyRows = mergeHistoricalRowsByMatchId(leagueHistoryRows, teamHistoryRows);
   await hydrateMissingEventSummaries(historyRows);
   const computedAt = new Date().toISOString();
+  const teamRows = buildTeamPerspectiveSamplesByCandidate(historyRows, activeTeamCandidates);
 
   const leagueHistory = new Map<number, HistoricalMatchRow[]>();
   for (const row of historyRows) {
@@ -953,7 +994,22 @@ export async function syncDerivedPrematchProfiles(
   for (const leagueId of activeLeagueIds) {
     const policy = leagueProfilePolicies.get(leagueId) ?? DOMESTIC_PROFILE_POLICY;
     const rows = filterHistoryRowsByLookback(leagueHistory.get(leagueId) ?? [], policy.lookbackDays);
-    const profile = deriveLeagueProfileFromHistory(rows, policy);
+    let profile = deriveLeagueProfileFromHistory(rows, policy);
+    let profileSampleMatches = rows.length;
+    let profileEventSummaryMatches = rows.filter((row) => parseStoredSettlementEventSummary(row.settlement_event_summary) != null).length;
+    let profileNotesEn = `Auto-derived from the last ${rows.length} settled matches over ${policy.lookbackDays} days.`;
+    let profileNotesVi = `Tu dong suy ra tu ${rows.length} tran da ket thuc trong ${policy.lookbackDays} ngay gan nhat.`;
+    if (!profile && policy.label === 'international') {
+      const leagueTeamIds = activeTeamCandidates
+        .filter((candidate) => candidate.targetLeagueIds.includes(leagueId))
+        .map((candidate) => candidate.teamId);
+      const participantSamples = leagueTeamIds.flatMap((teamId) => teamRows.get(teamId) ?? []);
+      profile = deriveLeagueProfileFromTeamPerspectives(participantSamples, policy);
+      profileSampleMatches = participantSamples.length;
+      profileEventSummaryMatches = participantSamples.filter((sample) => sample.scoredFirst != null && sample.hadGoalAfter75 != null).length;
+      profileNotesEn = `Auto-derived from ${participantSamples.length} recent team-perspective samples for participating national teams over ${policy.lookbackDays} days because direct tournament history was unavailable.`;
+      profileNotesVi = `Tu dong suy ra tu ${participantSamples.length} mau gan day theo goc nhin doi tuyen tham du trong ${policy.lookbackDays} ngay vi chua co lich su truc tiep cua giai.`;
+    }
     if (!profile) {
       skippedLeagueProfiles += 1;
       continue;
@@ -962,26 +1018,25 @@ export async function syncDerivedPrematchProfiles(
       leagueId,
       buildAutoDerivedLeagueProfileData(profile, {
         lookback_days: policy.lookbackDays,
-        sample_matches: rows.length,
-        event_summary_matches: rows.filter((row) => parseStoredSettlementEventSummary(row.settlement_event_summary) != null).length,
-        event_coverage: rows.length > 0
+        sample_matches: profileSampleMatches,
+        event_summary_matches: profileEventSummaryMatches,
+        event_coverage: profileSampleMatches > 0
           ? round(
-            rows.filter((row) => parseStoredSettlementEventSummary(row.settlement_event_summary) != null).length / rows.length,
+            profileEventSummaryMatches / profileSampleMatches,
             3,
           )
           : null,
         top_league_only: leagueTopFlags.get(leagueId) === true,
         computed_at: computedAt,
       }),
-      `Auto-derived from the last ${rows.length} settled matches over ${policy.lookbackDays} days.`,
-      `Tu dong suy ra tu ${rows.length} tran da ket thuc trong ${policy.lookbackDays} ngay gan nhat.`,
+      profileNotesEn,
+      profileNotesVi,
     );
     refreshedLeagueProfiles += 1;
   }
 
   let refreshedTeamProfiles = 0;
   let skippedTeamProfiles = teamCandidates.length - activeTeamCandidates.length;
-  const teamRows = buildTeamPerspectiveSamplesByCandidate(historyRows, activeTeamCandidates);
   for (const candidate of activeTeamCandidates) {
     const samples = filterHistoryRowsByLookback(teamRows.get(candidate.teamId) ?? [], candidate.profilePolicy.lookbackDays);
     const profile = deriveTeamProfileFromHistory(samples, candidate.profilePolicy);
@@ -1027,6 +1082,7 @@ export const __testables__ = {
   buildHistoricalBackfillArchiveRows,
   buildTeamCandidateAggregates,
   buildTeamPerspectiveSamplesByCandidate,
+  deriveLeagueProfileFromTeamPerspectives,
   filterHistoryRowsByLookback,
   hasFreshEnoughHistoryCoverage,
   mergeHistoricalRowsByMatchId,

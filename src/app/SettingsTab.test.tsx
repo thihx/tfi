@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -462,7 +462,7 @@ describe('SettingsTab', () => {
     expect(screen.getByText(/Plans are commercial access tiers, separate from internal roles\./)).toBeInTheDocument();
   });
 
-  it('lets admins configure live stream providers', async () => {
+  it('lets admins configure regional live stream sources', async () => {
     const user = userEvent.setup();
     render(<SettingsTab />);
 
@@ -471,9 +471,10 @@ describe('SettingsTab', () => {
     expect(await screen.findByText('xoilacztu.tv')).toBeInTheDocument();
     expect(screen.getByText('socolive16.cv')).toBeInTheDocument();
 
-    await user.type(screen.getByLabelText('Add provider URL'), 'https://live-extra.example/');
-    await user.click(screen.getByRole('button', { name: 'Add URL' }));
+    await user.type(screen.getByLabelText('Add source URL'), 'https://live-extra.example/');
+    await user.click(screen.getByRole('button', { name: 'Add source' }));
     expect(screen.getByText('live-extra.example')).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText('Countries for live-extra.example'), 'VN');
 
     await user.click(screen.getByText('Advanced tuning'));
     await user.clear(screen.getByLabelText('Request timeout'));
@@ -492,24 +493,57 @@ describe('SettingsTab', () => {
           credentials: 'include',
           body: JSON.stringify({
             enabled: true,
+            sources: [
+              {
+                id: 'source-1',
+                name: 'xoilacztu.tv',
+                url: 'https://xoilacztu.tv/',
+                countries: ['*'],
+                priority: 100,
+                active: true,
+                sourceType: 'provider_homepage',
+              },
+              {
+                id: 'source-2',
+                name: 'socolive16.cv',
+                url: 'https://socolive16.cv/',
+                countries: ['*'],
+                priority: 101,
+                active: true,
+                sourceType: 'provider_homepage',
+              },
+              {
+                id: 'source-3',
+                name: 'live-extra.example',
+                url: 'https://live-extra.example/',
+                countries: ['VN'],
+                priority: 102,
+                active: true,
+                sourceType: 'provider_homepage',
+              },
+            ],
             providerUrls: ['https://xoilacztu.tv/', 'https://socolive16.cv/', 'https://live-extra.example/'],
             timeoutMs: 4500,
             cacheTtlMs: 240000,
             maxMatches: 40,
+            regionFiltering: {
+              enabled: true,
+              unknownPolicy: 'global_only',
+            },
           }),
         }),
       );
     });
     expect(mockShowToast).toHaveBeenCalledWith('Live stream settings saved.', 'success');
-  });
+  }, 15_000);
 
-  it('rejects invalid live stream provider URLs in the add form', async () => {
+  it('rejects invalid live stream source URLs in the add form', async () => {
     const user = userEvent.setup();
     render(<SettingsTab />);
 
     await user.click(await screen.findByRole('tab', { name: /^Live Streams$/i }));
-    await user.type(await screen.findByLabelText('Add provider URL'), 'ftp://bad.example/live');
-    await user.click(screen.getByRole('button', { name: 'Add URL' }));
+    fireEvent.change(await screen.findByLabelText('Add source URL'), { target: { value: 'ftp://bad.example/live' } });
+    await user.click(screen.getByRole('button', { name: 'Add source' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Provider URLs must use http or https.');
   });

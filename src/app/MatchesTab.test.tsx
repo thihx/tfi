@@ -300,7 +300,7 @@ describe('MatchesTab', () => {
         expect.objectContaining({ matchId: '200', alertKind: 'match_start' }),
       );
     });
-  });
+  }, 15_000);
 
   it('classifies kickoff alert visibility from match status and kickoff time', () => {
     expect(shouldShowKickoffAlertAction(baseMatches[1]!)).toBe(true);

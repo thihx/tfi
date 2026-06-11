@@ -3,7 +3,8 @@
 // ============================================================
 
 import type { FastifyInstance } from 'fastify';
-import { lookupLiveStreamLinks, parseLiveStreamProviderUrls } from '../lib/live-stream-locator.js';
+import { lookupLiveStreamLinks, parseLiveStreamSourcesAsProviders } from '../lib/live-stream-locator.js';
+import { filterLiveStreamSourcesForRegion, resolveViewerRegion } from '../lib/live-stream-region.js';
 import { loadLiveStreamLocatorSettings } from '../lib/live-stream-settings.js';
 import * as repo from '../repos/matches.repo.js';
 
@@ -34,7 +35,17 @@ export async function matchRoutes(app: FastifyInstance) {
     }
 
     const matches = await repo.getMatchesByIds(matchIds);
-    const providers = parseLiveStreamProviderUrls(settings.providerUrls);
+    const viewerRegion = resolveViewerRegion(req);
+    const eligibleSources = filterLiveStreamSourcesForRegion(settings.sources, viewerRegion, settings.regionFiltering);
+    const providers = parseLiveStreamSourcesAsProviders(eligibleSources);
+    req.log.info({
+      event: 'live_stream_lookup_region',
+      viewer_country: viewerRegion.country,
+      region_source: viewerRegion.source,
+      eligible_source_count: eligibleSources.length,
+      lookup_source_count: providers.length,
+      unknown_policy: settings.regionFiltering.unknownPolicy,
+    }, 'Live stream lookup region filter applied');
     const results = await lookupLiveStreamLinks(matches, {
       enabled: settings.enabled,
       providers,
@@ -42,12 +53,15 @@ export async function matchRoutes(app: FastifyInstance) {
       cacheTtlMs: settings.cacheTtlMs,
       cacheKeySalt: [
         settings.enabled ? 'enabled' : 'disabled',
+        settings.regionFiltering.enabled ? 'region:on' : 'region:off',
+        viewerRegion.country ?? 'unknown',
+        settings.regionFiltering.unknownPolicy,
         settings.timeoutMs,
         settings.cacheTtlMs,
-        ...settings.providerUrls,
+        ...eligibleSources.map((source) => `${source.id}:${source.url}:${source.countries.join('+')}:${source.priority}:${source.active}`),
       ].join('|'),
     });
-    return { results };
+    return { viewerRegion, results };
   });
 
   /** Full refresh — replaces all matches (used by match fetcher) */

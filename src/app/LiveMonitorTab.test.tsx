@@ -279,7 +279,7 @@ describe('LiveMonitorTab', () => {
     render(<LiveMonitorTab />);
 
     await waitFor(() => expect(mockFetchLiveMonitorStatus).toHaveBeenCalled());
-    expect(screen.getByText('Live Right Now')).toBeInTheDocument();
+    expect(await screen.findByText('Live Right Now')).toBeInTheDocument();
     expect(screen.getByText('Waiting Or Upcoming')).toBeInTheDocument();
     expect(await screen.findByText('Latest Run Summary')).toBeInTheDocument();
     expect(screen.getByText('Official Bet Alerts')).toBeInTheDocument();

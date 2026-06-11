@@ -3183,6 +3183,29 @@ th.data-table__th--sortable:hover {
     word-break: break-all;
 }
 
+.settings-live-source-name {
+    max-width: min(320px, 100%);
+    font-weight: 600;
+}
+
+.settings-live-source-grid {
+    display: grid;
+    grid-template-columns: minmax(220px, 2fr) minmax(180px, 1fr) minmax(160px, 1fr) minmax(96px, 0.5fr) auto;
+    gap: 10px;
+    align-items: end;
+    margin-top: 12px;
+}
+
+.settings-live-country-select {
+    min-height: 86px;
+}
+
+.settings-live-source-active {
+    min-height: 38px;
+    align-items: center;
+    margin-bottom: 0;
+}
+
 .settings-live-provider-card__probe {
     margin: 8px 0 0;
     font-size: 0.82rem;
@@ -3270,6 +3293,14 @@ th.data-table__th--sortable:hover {
 
     .settings-live-provider-card__remove {
         align-self: flex-start;
+    }
+
+    .settings-live-source-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .settings-live-source-name {
+        max-width: 100%;
     }
 }
 

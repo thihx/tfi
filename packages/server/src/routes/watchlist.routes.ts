@@ -28,6 +28,7 @@ import { buildMatchAlertContext } from '../lib/match-alert-context.js';
 import { compileMatchAlertFreeTextRule } from '../lib/match-alert-free-text-compiler.js';
 import { evaluateMatchAlertRule } from '../lib/match-alert-rule-engine.js';
 import { buildAutoWatchlistEntry } from '../jobs/watchlist-side-effects.shared.js';
+import { setForceEnrich } from '../jobs/enrich-watchlist.job.js';
 
 const FAVORITE_LEAGUE_IDS_KEY = 'FAVORITE_LEAGUE_IDS';
 const LEGACY_SUGGESTED_TOP_LEAGUE_IDS_KEY = 'SUGGESTED_TOP_LEAGUE_IDS';
@@ -202,6 +203,7 @@ export async function watchlistRoutes(app: FastifyInstance) {
       };
     }
     const entry = await repo.createWatchlistEntry(body, user.userId);
+    setForceEnrich();
     return reply.code(201).send(entry);
   });
 
@@ -340,6 +342,7 @@ export async function watchlistRoutes(app: FastifyInstance) {
       'favorite-league-auto',
     ));
     const addedRows = await repo.createWatchlistEntriesBatch(watchlistEntries, user.userId);
+    if (addedRows.length > 0) setForceEnrich();
 
     return {
       error: null,

@@ -108,6 +108,14 @@ vi.mock('../lib/gemini.js', () => ({
   })),
 }));
 
+vi.mock('../lib/strategic-context.service.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../lib/strategic-context.service.js')>();
+  return {
+    ...actual,
+    fetchStrategicContext: vi.fn().mockResolvedValue(null),
+  };
+});
+
 vi.mock('../lib/telegram.js', () => ({
   sendTelegramMessage: vi.fn().mockResolvedValue(undefined),
   sendTelegramPhoto: vi.fn().mockRejectedValue(new Error('photo unavailable in test')),
@@ -254,6 +262,7 @@ const mockWatchlistEntry = {
 
 vi.mock('../repos/watchlist.repo.js', () => ({
   getOperationalWatchlistByMatchId: vi.fn().mockResolvedValue(mockWatchlistEntry),
+  updateOperationalWatchlistEntry: vi.fn().mockResolvedValue({}),
 }));
 
 vi.mock('../repos/matches.repo.js', () => ({
@@ -504,6 +513,11 @@ beforeEach(async () => {
 
   const watchlistRepo = await import('../repos/watchlist.repo.js');
   vi.mocked(watchlistRepo.getOperationalWatchlistByMatchId).mockResolvedValue(mockWatchlistEntry as never);
+  vi.mocked(watchlistRepo.updateOperationalWatchlistEntry).mockResolvedValue({} as never);
+
+  const strategicContext = await import('../lib/strategic-context.service.js');
+  vi.mocked(strategicContext.fetchStrategicContext).mockReset();
+  vi.mocked(strategicContext.fetchStrategicContext).mockResolvedValue(null as never);
 
   const matchAlertDeliveries = await import('../repos/match-alert-deliveries.repo.js');
   vi.mocked(matchAlertDeliveries.enqueueStatsOnlyLiveSignalDeliveries).mockReset();
@@ -1544,7 +1558,7 @@ describe('runPipelineBatch', () => {
     expect(result.results[0]?.success).toBe(true);
   });
 
-  test('records provider no-live-stats and clock-lag telemetry in degraded odds+events mode', async () => {
+  test('records provider no-live-stats without inferring false clock lag from wall-clock elapsed gap', async () => {
     const footballApi = await import('../lib/football-api.js');
     const insight = await import('../lib/provider-insight-cache.js');
     const nowSeconds = Math.floor(Date.now() / 1000);
@@ -1589,18 +1603,16 @@ describe('runPipelineBatch', () => {
     expect(match?.decisionKind).toBe('no_bet');
     expect(match?.debug?.evidenceMode).toBe('odds_events_only_degraded');
     expect(match?.debug?.providerReturnedNoLiveStatistics).toBe(true);
-    expect(match?.debug?.providerClockLagMinutes).toBeGreaterThanOrEqual(4);
-    expect(match?.debug?.providerClockLagStatus).toBe('degraded');
-    expect(match?.debug?.providerCoverageStatus).toBe('clock_lag_no_live_stats');
-    expect(match?.debug?.providerWarnings).toEqual(expect.arrayContaining([
-      'provider_returned_no_live_statistics',
-      'provider_clock_lag_high',
-    ]));
+    expect(match?.debug?.providerClockLagMinutes).toBeNull();
+    expect(match?.debug?.providerClockLagStatus).toBe('unknown');
+    expect(match?.debug?.providerCoverageStatus).toBe('no_live_stats');
+    expect(match?.debug?.providerWarnings).toEqual(['provider_returned_no_live_statistics']);
     expect(match?.debug?.providerHealth).toEqual(expect.objectContaining({
       provider: 'api-football',
       statisticsCoverage: 'empty',
       providerReportedMinute: 37,
-      coverageStatus: 'clock_lag_no_live_stats',
+      coverageStatus: 'no_live_stats',
+      wallClockMinute: null,
     }));
   });
 
@@ -2495,6 +2507,170 @@ describe('runPipelineBatch', () => {
     expect(result.prompt).toContain('- Is Manual Push: YES');
     expect(result.prompt).not.toContain('watchlist/system force mode, not by a direct manual Ask AI request');
     expect(result.result.debug?.analysisMode).toBe('manual_force');
+  });
+
+  test('prompt-only Ask AI enriches and persists missing strategic context before prematch prompt', async () => {
+    const footballApi = await import('../lib/football-api.js');
+    vi.mocked(footballApi.fetchFixturesByIds).mockResolvedValueOnce([{
+      ...mockFixture,
+      fixture: { ...mockFixture.fixture, date: '2026-06-11T17:00:00Z', status: { short: 'NS', elapsed: null }, timestamp: 1781197200 },
+      goals: { home: null, away: null },
+    }] as never);
+    vi.mocked(footballApi.fetchFixtureStatistics).mockResolvedValueOnce([]);
+    vi.mocked(footballApi.fetchFixtureEvents).mockResolvedValueOnce([] as never);
+    vi.mocked(footballApi.fetchLiveOdds).mockResolvedValueOnce([] as never);
+    vi.mocked(footballApi.fetchPreMatchOdds).mockResolvedValueOnce([] as never);
+
+    const strategicContext = await import('../lib/strategic-context.service.js');
+    vi.mocked(strategicContext.fetchStrategicContext).mockResolvedValueOnce({
+      version: 2,
+      competition_type: 'international',
+      home_motivation: 'Host opener with strong motivation.',
+      away_motivation: 'Underdog can frustrate the favorite.',
+      league_positions: 'Cross-league national-team context; positions are not comparable.',
+      fixture_congestion: 'No material congestion.',
+      rotation_risk: 'Low rotation risk for both teams.',
+      key_absences: 'No major absences confirmed.',
+      h2h_narrative: 'Limited direct relevance.',
+      summary: 'Grounded World Cup opener context favors a cautious pre-match read.',
+      home_motivation_vi: '',
+      away_motivation_vi: '',
+      league_positions_vi: '',
+      fixture_congestion_vi: '',
+      rotation_risk_vi: '',
+      key_absences_vi: '',
+      h2h_narrative_vi: '',
+      summary_vi: '',
+      searched_at: '2026-06-11T16:00:00.000Z',
+      ai_condition: '(Minute >= 60) AND (Draw)',
+      ai_condition_blueprint: null,
+      ai_condition_reason: 'Watch for a draw after the favorite fails to break through.',
+      ai_condition_reason_vi: '',
+      qualitative: {
+        en: {
+          home_motivation: 'Host opener with strong motivation.',
+          away_motivation: 'Underdog can frustrate the favorite.',
+          league_positions: 'Cross-league national-team context; positions are not comparable.',
+          fixture_congestion: 'No material congestion.',
+          rotation_risk: 'Low rotation risk for both teams.',
+          key_absences: 'No major absences confirmed.',
+          h2h_narrative: 'Limited direct relevance.',
+          summary: 'Grounded World Cup opener context favors a cautious pre-match read.',
+        },
+        vi: {
+          home_motivation: '',
+          away_motivation: '',
+          league_positions: '',
+          fixture_congestion: '',
+          rotation_risk: '',
+          key_absences: '',
+          h2h_narrative: '',
+          summary: '',
+        },
+      },
+      quantitative: {
+        home_last5_points: 10,
+        away_last5_points: 8,
+        home_last5_goals_for: 8,
+        away_last5_goals_for: 6,
+        home_last5_goals_against: 3,
+        away_last5_goals_against: 5,
+        home_home_goals_avg: 1.5,
+        away_away_goals_avg: 1.2,
+        home_over_2_5_rate_last10: 0.4,
+        away_over_2_5_rate_last10: 0.5,
+        home_btts_rate_last10: 0.45,
+        away_btts_rate_last10: 0.55,
+        home_clean_sheet_rate_last10: 0.5,
+        away_clean_sheet_rate_last10: 0.3,
+        home_failed_to_score_rate_last10: 0.1,
+        away_failed_to_score_rate_last10: 0.2,
+      },
+      source_meta: {
+        search_quality: 'high',
+        web_search_queries: ['World Cup opener team news'],
+        sources: [],
+        trusted_source_count: 3,
+        rejected_source_count: 0,
+        rejected_domains: [],
+      },
+    } as never);
+
+    const { callGemini } = await import('../lib/gemini.js');
+    vi.mocked(callGemini).mockResolvedValueOnce(JSON.stringify({
+      should_push: false,
+      selection: '',
+      bet_market: '',
+      confidence: 0,
+      reasoning_en: 'On-demand strategic context is useful, but no bet is warranted.',
+      reasoning_vi: 'On-demand strategic context is useful, but no bet is warranted.',
+      warnings: ['PREMATCH_ONLY_CONTEXT'],
+      value_percent: 0,
+      risk_level: 'LOW',
+      stake_percent: 0,
+    }));
+
+    const result = await runPromptOnlyAnalysisForMatch('100', {
+      forceAnalyze: true,
+      ensureStrategicContext: true,
+    });
+
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    expect(strategicContext.fetchStrategicContext).toHaveBeenCalledWith(
+      'Team A',
+      'Team B',
+      'Test League',
+      '2026-06-11T17:00:00Z',
+      expect.objectContaining({ topLeague: true, highPriority: true }),
+    );
+    expect(watchlistRepo.updateOperationalWatchlistEntry).toHaveBeenCalledWith(
+      '100',
+      expect.objectContaining({
+        strategic_context: expect.objectContaining({
+          summary: expect.stringContaining('World Cup opener'),
+          _meta: expect.objectContaining({ refresh_status: 'good', refresh_window: 'on_demand' }),
+        }),
+        strategic_context_at: expect.any(String),
+      }),
+    );
+    expect(result.prompt).toContain('PREMATCH EXPERT FEATURES V1');
+    expect(result.prompt).toContain('"competition_type":"international"');
+    expect(result.prompt).toContain('"trusted_source_count":3');
+    expect(result.result.debug?.strategicContextOnDemandAttempted).toBe(true);
+    expect(result.result.debug?.strategicContextOnDemandApplied).toBe(true);
+    expect(result.result.debug?.structuredPrematchAskAi).toBe(true);
+  });
+
+  test('prompt-only Ask AI skips analysis LLM when required strategic context enrichment fails', async () => {
+    const footballApi = await import('../lib/football-api.js');
+    vi.mocked(footballApi.fetchFixturesByIds).mockResolvedValueOnce([{
+      ...mockFixture,
+      fixture: { ...mockFixture.fixture, date: '2026-06-12T17:00:00Z', status: { short: 'NS', elapsed: null }, timestamp: 1781283600 },
+      goals: { home: null, away: null },
+    }] as never);
+    vi.mocked(footballApi.fetchFixtureStatistics).mockResolvedValueOnce([]);
+    vi.mocked(footballApi.fetchFixtureEvents).mockResolvedValueOnce([] as never);
+    vi.mocked(footballApi.fetchLiveOdds).mockResolvedValueOnce([] as never);
+    vi.mocked(footballApi.fetchPreMatchOdds).mockResolvedValueOnce([] as never);
+
+    const strategicContext = await import('../lib/strategic-context.service.js');
+    vi.mocked(strategicContext.fetchStrategicContext).mockRejectedValueOnce(new Error('AI Gateway blocked Gemini call: loop_detected'));
+
+    const { callGemini } = await import('../lib/gemini.js');
+    vi.mocked(callGemini).mockClear();
+
+    const result = await runPromptOnlyAnalysisForMatch('100', {
+      forceAnalyze: true,
+      ensureStrategicContext: true,
+    });
+
+    expect(strategicContext.fetchStrategicContext).toHaveBeenCalledTimes(1);
+    expect(callGemini).not.toHaveBeenCalled();
+    expect(result.prompt).toBe('[LLM skipped]');
+    expect(result.text).toContain('Strategic context unavailable');
+    expect(result.result.debug?.strategicContextOnDemandAttempted).toBe(true);
+    expect(result.result.debug?.strategicContextOnDemandApplied).toBe(false);
+    expect(result.result.debug?.llmCalled).toBe(false);
   });
 
   test('prompt-only Ask AI skips low_evidence matches instead of calling LLM', async () => {

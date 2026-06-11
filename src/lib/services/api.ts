@@ -139,8 +139,10 @@ export interface MatchLiveStreamLookupResult {
 
 export interface MatchLiveStreamLink {
   url: string;
+  sourceId?: string;
   sourceName: string;
   sourceUrl: string;
+  countries?: string[];
   title: string;
   verificationStatus: 'team_match' | 'reachable';
   liveHint: boolean;
@@ -151,7 +153,7 @@ export async function lookupMatchLiveStreams(
   matchIds: string[],
 ): Promise<MatchLiveStreamLookupResult[]> {
   if (matchIds.length === 0) return [];
-  const response = await pgPost<{ results: MatchLiveStreamLookupResult[] }>(
+  const response = await pgPost<{ results: MatchLiveStreamLookupResult[]; viewerRegion?: LiveStreamViewerRegion }>(
     config,
     '/api/matches/live-streams/lookup',
     { matchIds },
@@ -159,12 +161,36 @@ export async function lookupMatchLiveStreams(
   return response.results;
 }
 
+export interface LiveStreamViewerRegion {
+  country: string | null;
+  source: 'cloudflare' | 'trusted_proxy_header' | 'geoip' | 'override' | 'unknown';
+  confidence: 'high' | 'medium' | 'low';
+}
+
+export type LiveStreamSourceType = 'provider_homepage' | 'direct_hls' | 'external_page';
+
+export interface LiveStreamSource {
+  id: string;
+  name: string;
+  url: string;
+  countries: string[];
+  priority: number;
+  active: boolean;
+  sourceType: LiveStreamSourceType;
+  notes?: string;
+}
+
 export interface LiveStreamLocatorSettings {
   enabled: boolean;
+  sources: LiveStreamSource[];
   providerUrls: string[];
   timeoutMs: number;
   cacheTtlMs: number;
   maxMatches: number;
+  regionFiltering: {
+    enabled: boolean;
+    unknownPolicy: 'global_only' | 'hide_all' | 'allow_all';
+  };
 }
 
 export async function fetchLiveStreamLocatorSettings(config: AppConfig | string): Promise<LiveStreamLocatorSettings> {
@@ -180,6 +206,9 @@ export async function updateLiveStreamLocatorSettings(
 
 export interface LiveStreamProviderProbeResult {
   url: string;
+  sourceId?: string;
+  countries?: string[];
+  regionEligible?: boolean;
   hostname: string;
   reachable: boolean;
   httpStatus: number | null;
@@ -193,15 +222,18 @@ export interface LiveStreamProviderProbeResult {
 
 export async function testLiveStreamProviders(
   config: AppConfig | string,
-  providerUrls: string[],
+  providerUrlsOrSources: string[] | LiveStreamSource[],
   timeoutMs?: number,
+  country?: string,
 ): Promise<{ results: LiveStreamProviderProbeResult[]; checkedAt: string }> {
+  const usesSources = providerUrlsOrSources.some((item) => typeof item !== 'string');
   return pgPost<{ results: LiveStreamProviderProbeResult[]; checkedAt: string }>(
     config,
     '/api/settings/live-stream-locator/test-providers',
     {
-      providerUrls,
+      [usesSources ? 'sources' : 'providerUrls']: providerUrlsOrSources,
       ...(timeoutMs != null ? { timeoutMs } : {}),
+      ...(country ? { country } : {}),
     },
   );
 }

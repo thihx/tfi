@@ -455,10 +455,23 @@ describe('system settings routes', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({
       enabled: false,
+      sources: [
+        expect.objectContaining({
+          name: 'live.example',
+          url: 'https://live.example/',
+          countries: ['*'],
+          active: true,
+          sourceType: 'provider_homepage',
+        }),
+      ],
       providerUrls: ['https://live.example/'],
       timeoutMs: 4500,
       cacheTtlMs: 120000,
       maxMatches: 8,
+      regionFiltering: {
+        enabled: true,
+        unknownPolicy: 'global_only',
+      },
     });
     expect(repo.getSettings).toHaveBeenCalledWith('default', { fallbackToDefault: false });
   });
@@ -482,10 +495,28 @@ describe('system settings routes', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({
       enabled: true,
+      sources: [
+        expect.objectContaining({
+          url: 'https://xoilacztu.tv/',
+          countries: ['*'],
+          active: true,
+          sourceType: 'provider_homepage',
+        }),
+        expect.objectContaining({
+          url: 'https://socolive16.cv/',
+          countries: ['*'],
+          active: true,
+          sourceType: 'provider_homepage',
+        }),
+      ],
       providerUrls: ['https://xoilacztu.tv/', 'https://socolive16.cv/'],
       timeoutMs: 5000,
       cacheTtlMs: 240000,
       maxMatches: 40,
+      regionFiltering: {
+        enabled: true,
+        unknownPolicy: 'global_only',
+      },
     });
     expect(repo.saveSettings).toHaveBeenCalledWith({
       TELEGRAM_ENABLED: true,
@@ -495,6 +526,74 @@ describe('system settings routes', () => {
       LIVE_STREAM_LOCATOR_CACHE_TTL_MS: 240000,
       LIVE_STREAM_LOCATOR_MAX_MATCHES: 40,
     }, 'default');
+  });
+
+  test('saves regional live stream sources for admin users', async () => {
+    const repo = await import('../repos/settings.repo.js');
+    vi.mocked(repo.getSettings).mockResolvedValueOnce({});
+
+    const res = await adminApp.inject({
+      method: 'PUT',
+      url: '/api/settings/live-stream-locator',
+      payload: {
+        enabled: true,
+        sources: [
+          {
+            name: 'Vietnam Official',
+            url: 'https://vn.example/#top',
+            countries: ['vn'],
+            priority: 10,
+            active: true,
+            sourceType: 'provider_homepage',
+          },
+          {
+            name: 'Korea Official',
+            url: 'https://kr.example/',
+            countries: ['KR'],
+            priority: 20,
+            active: false,
+            sourceType: 'external_page',
+          },
+        ],
+        regionFiltering: { enabled: true, unknownPolicy: 'hide_all' },
+        timeoutMs: 5000,
+        cacheTtlMs: 240000,
+        maxMatches: 40,
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({
+      enabled: true,
+      providerUrls: ['https://vn.example/', 'https://kr.example/'],
+      sources: [
+        {
+          name: 'Vietnam Official',
+          url: 'https://vn.example/',
+          countries: ['VN'],
+          priority: 10,
+          active: true,
+          sourceType: 'provider_homepage',
+        },
+        {
+          name: 'Korea Official',
+          url: 'https://kr.example/',
+          countries: ['KR'],
+          priority: 20,
+          active: false,
+          sourceType: 'external_page',
+        },
+      ],
+      regionFiltering: { enabled: true, unknownPolicy: 'hide_all' },
+    });
+    expect(repo.saveSettings).toHaveBeenCalledWith(expect.objectContaining({
+      LIVE_STREAM_SOURCES: [
+        expect.objectContaining({ url: 'https://vn.example/', countries: ['VN'] }),
+        expect.objectContaining({ url: 'https://kr.example/', countries: ['KR'] }),
+      ],
+      LIVE_STREAM_REGION_ENABLED: true,
+      LIVE_STREAM_REGION_UNKNOWN_POLICY: 'hide_all',
+    }), 'default');
   });
 
   test('rejects invalid live stream locator settings', async () => {
@@ -531,7 +630,27 @@ describe('system settings routes', () => {
       method: 'POST',
       url: '/api/settings/live-stream-locator/test-providers',
       payload: {
-        providerUrls: ['https://xoilacztu.tv/'],
+        sources: [
+          {
+            id: 'vn-xoilac',
+            name: 'Vietnam Xoilac',
+            url: 'https://xoilacztu.tv/',
+            countries: ['VN'],
+            priority: 10,
+            active: true,
+            sourceType: 'provider_homepage',
+          },
+          {
+            id: 'kr-live',
+            name: 'Korea Live',
+            url: 'https://kr-live.example/',
+            countries: ['KR'],
+            priority: 10,
+            active: true,
+            sourceType: 'provider_homepage',
+          },
+        ],
+        country: 'VN',
         timeoutMs: 3500,
       },
     });
@@ -542,6 +661,9 @@ describe('system settings routes', () => {
       results: [
         {
           url: 'https://xoilacztu.tv/',
+          sourceId: 'vn-xoilac',
+          countries: ['VN'],
+          regionEligible: true,
           hostname: 'xoilacztu.tv',
           reachable: true,
           httpStatus: 200,

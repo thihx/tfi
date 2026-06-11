@@ -111,7 +111,7 @@ describe('buildLiveAnalysisPrompt', () => {
     expect(prompt).not.toContain('"over_2.5"');
   });
 
-  test('explains no live stats as provider coverage in degraded evidence mode', () => {
+  test('explains no live stats as provider coverage without claiming clock delay', () => {
     const prompt = buildLiveAnalysisPrompt({
       ...baseInput,
       statsCompact: {
@@ -124,15 +124,15 @@ describe('buildLiveAnalysisPrompt', () => {
       statsAvailable: false,
       statsSource: 'api-football',
       evidenceMode: 'odds_events_only_degraded',
-      providerWarnings: ['provider_clock_lag_high', 'provider_returned_no_live_statistics'],
-      providerClockLagMinutes: 4,
+      providerWarnings: ['provider_returned_no_live_statistics'],
+      providerClockLagMinutes: null,
       providerReturnedNoLiveStatistics: true,
-      providerCoverageStatus: 'clock_lag_no_live_stats',
+      providerCoverageStatus: 'no_live_stats',
       derivedInsights: { goals: 1, redCards: 0 },
     }, settings);
 
-    expect(prompt).toContain('Provider clock note: live feed appears delayed by about 4m');
-    expect(prompt).toContain('User-facing wording: say "provider live clock appears delayed"');
+    expect(prompt).not.toContain('Provider clock note');
+    expect(prompt).not.toContain('provider live clock appears delayed');
     expect(prompt).toContain('Provider evidence note: api-football returned no live statistics for this fixture');
     expect(prompt).toContain('This is provider coverage state, not an internal system failure');
     expect(prompt).toContain('User-facing wording: say "provider returned no live statistics"');

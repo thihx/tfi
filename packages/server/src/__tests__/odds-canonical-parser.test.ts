@@ -218,6 +218,66 @@ describe('odds canonical parser', () => {
     expect(result.canonical.ah_adjacent?.line).toBe(-0.75);
   });
 
+  test('pairs API-Sports inline Asian Handicap labels that repeat the home-centric line', () => {
+    const result = buildOddsCanonical([{
+      bookmakers: [{
+        name: 'API-Football Prematch',
+        bets: [
+          {
+            name: 'Asian Handicap',
+            values: [
+              { value: 'Home -1', odd: '1.70' },
+              { value: 'Away -1', odd: '2.15' },
+              { value: 'Home -0.5', odd: '1.45' },
+              { value: 'Away -0.5', odd: '2.75' },
+            ],
+          },
+        ],
+      }],
+    }]);
+
+    expect(result.canonical.ah).toEqual({
+      line: -0.5,
+      home: 1.45,
+      away: 2.75,
+    });
+    expect(result.canonical.ah_adjacent).toEqual({
+      line: -1,
+      home: 1.7,
+      away: 2.15,
+    });
+  });
+
+  test('does not treat three-way handicap result markets as Asian Handicap', () => {
+    const result = buildOddsCanonical([{
+      bookmakers: [{
+        name: 'API-Football Prematch',
+        bets: [
+          {
+            name: 'Handicap Result',
+            values: [
+              { value: 'Home -1', odd: '2.25' },
+              { value: 'Draw -1', odd: '3.10' },
+              { value: 'Away -1', odd: '2.85' },
+            ],
+          },
+          {
+            name: 'European Handicap (2nd Half)',
+            values: [
+              { value: 'Home -1', odd: '3.90' },
+              { value: 'Draw -1', odd: '2.85' },
+              { value: 'Away -1', odd: '1.95' },
+            ],
+          },
+        ],
+      }],
+    }]);
+
+    expect(result.canonical.ah).toBeUndefined();
+    expect(result.canonical.ah_adjacent).toBeUndefined();
+    expect(result.canonical.ah_extra).toBeUndefined();
+  });
+
   test('includes up to two extra Asian handicap rungs beyond main and adjacent', () => {
     const result = buildOddsCanonical([{
       bookmakers: [{
