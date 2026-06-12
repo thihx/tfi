@@ -1640,21 +1640,187 @@ describe('runPipelineBatch', () => {
     expect(result.results[0]?.debug?.skipReason).toBe('degraded_evidence');
   });
 
-  test('ignores hallucinated odds when canonical odds are unavailable', async () => {
+  test('keeps hallucinated odds out of recommendation persistence when canonical odds are unavailable', async () => {
     const footballApi = await import('../lib/football-api.js');
     vi.mocked(footballApi.fetchLiveOdds).mockResolvedValueOnce([]);
     vi.mocked(footballApi.fetchPreMatchOdds).mockResolvedValueOnce([]);
 
     const { callGemini } = await import('../lib/gemini.js');
+    vi.mocked(callGemini).mockResolvedValueOnce(JSON.stringify({
+      should_push: true,
+      selection: 'Away +0.25 @2.10',
+      bet_market: 'asian_handicap_away_+0.25',
+      confidence: 70,
+      summary_vi: 'Doi khach dang co ap luc ro nhung khong co live odds.',
+      summary_en: 'Away pressure is visible but no live odds are available.',
+      reason_vi: 'Tin hieu chi de theo doi.',
+      strength: 'medium',
+      suggested_action: 'review_live_market',
+      market_family_hint: 'side_pressure',
+      reasons: ['stats_only_no_odds'],
+    }));
+    const recommendationsRepo = await import('../repos/recommendations.repo.js');
     const matchAlertDeliveries = await import('../repos/match-alert-deliveries.repo.js');
 
     const result = await runPipelineBatch(['100']);
-    expect(result.results[0]?.shouldPush).toBe(false);
+    expect(result.results[0]?.shouldPush).toBe(true);
     expect(result.results[0]?.debug?.evidenceMode).toBe('stats_only');
     expect(result.results[0]?.debug?.skippedAt).toBe('llm_eligibility');
-    expect(result.results[0]?.debug?.skipReason).toBe('degraded_evidence');
-    expect(callGemini).not.toHaveBeenCalled();
+    expect(result.results[0]?.debug?.skipReason).toBe('stats_only_ai_advisory_emitted');
+    expect(callGemini).toHaveBeenCalledTimes(1);
+    expect(recommendationsRepo.createRecommendation).not.toHaveBeenCalled();
+    expect(matchAlertDeliveries.enqueueStatsOnlyLiveSignalDeliveries).toHaveBeenCalledWith(expect.objectContaining({
+      matchId: '100',
+      signal: expect.objectContaining({
+        triggered: true,
+        signalType: 'ai_stats_only_advisory',
+        source: 'ai_advisory',
+      }),
+    }));
+    expect(result.results[0]?.debug?.statsOnlySignal).toEqual(expect.objectContaining({
+      signalType: 'ai_stats_only_advisory',
+      llmCalled: true,
+      savedRecommendation: false,
+    }));
+    expect(result.results[0]?.debug?.outputDecision).toEqual(expect.objectContaining({
+      outputKind: 'stats_only_signal',
+      deliveryKind: 'match_alert',
+      llmCalled: true,
+      savedRecommendation: false,
+      settlementEligible: false,
+      roiEligible: false,
+    }));
+  });
+
+  test('uses AI Gateway advisory and push delivery for stats/events without live odds', async () => {
+    const footballApi = await import('../lib/football-api.js');
+    const recommendationsRepo = await import('../repos/recommendations.repo.js');
+    const matchAlertDeliveries = await import('../repos/match-alert-deliveries.repo.js');
+    const { callGemini } = await import('../lib/gemini.js');
+
+    vi.mocked(footballApi.fetchFixturesByIds).mockResolvedValueOnce([{
+      ...mockFixture,
+      fixture: { ...mockFixture.fixture, status: { short: '2H', elapsed: 65 } },
+      teams: {
+        home: { id: 1, name: 'South Korea' },
+        away: { id: 2, name: 'Czech Republic' },
+      },
+      league: { id: 1, name: 'World Cup' },
+      goals: { home: 0, away: 1 },
+    }] as never);
+    vi.mocked(footballApi.fetchFixtureStatistics).mockResolvedValueOnce([
+      { team: { id: 1 }, statistics: [
+        { type: 'Total Shots', value: 12 },
+        { type: 'Shots on Goal', value: 4 },
+        { type: 'Corner Kicks', value: 3 },
+      ] },
+      { team: { id: 2 }, statistics: [
+        { type: 'Total Shots', value: 10 },
+        { type: 'Shots on Goal', value: 4 },
+        { type: 'Corner Kicks', value: 2 },
+      ] },
+    ] as never);
+    vi.mocked(footballApi.fetchFixtureEvents).mockResolvedValueOnce([
+      { time: { elapsed: 58 }, team: { id: 2, name: 'Czech Republic' }, type: 'Goal', detail: 'Normal Goal' },
+    ] as never);
+    vi.mocked(footballApi.fetchLiveOdds).mockResolvedValueOnce([] as never);
+    vi.mocked(footballApi.fetchPreMatchOdds).mockResolvedValueOnce([] as never);
+    vi.mocked(callGemini).mockResolvedValueOnce(JSON.stringify({
+      should_push: true,
+      confidence: 76,
+      strength: 'medium',
+      summary_vi: 'Han Quoc dang day ap luc sau ban thua, nhung hien khong co live odds nen day chi la tin hieu theo doi.',
+      summary_en: 'South Korea are increasing pressure after conceding, but no live odds are available so this is only a watch advisory.',
+      reason_vi: 'Cu sut va SOT cua hai doi du cao de tiep tuc theo doi, khong du dieu kien tao khuyen nghi dau tu.',
+      market_family_hint: 'goals_ou',
+      suggested_action: 'review_live_market',
+      reasons: ['no_live_odds', 'stats_events_available', 'second_half_pressure'],
+    }));
+
+    const result = await runPipelineBatch(['100']);
+
+    expect(callGemini).toHaveBeenCalledWith(
+      expect.stringContaining('no usable live odds'),
+      'gemini-3.5-flash',
+      expect.objectContaining({
+        operation: 'tfi.stats_only_ai_advisory',
+        featureKey: 'tfi.stats_only_ai_advisory',
+        matchId: '100',
+        promptVersion: LIVE_ANALYSIS_PROMPT_VERSION,
+      }),
+    );
+    expect(recommendationsRepo.createRecommendation).not.toHaveBeenCalled();
+    expect(matchAlertDeliveries.enqueueStatsOnlyLiveSignalDeliveries).toHaveBeenCalledWith(expect.objectContaining({
+      matchId: '100',
+      homeTeam: 'South Korea',
+      awayTeam: 'Czech Republic',
+      league: 'World Cup',
+      score: '0-1',
+      signal: expect.objectContaining({
+        triggered: true,
+        signalType: 'ai_stats_only_advisory',
+        source: 'ai_advisory',
+        confidence: 76,
+        summaryVi: expect.stringContaining('live odds'),
+      }),
+    }));
+    expect(result.results[0]).toEqual(expect.objectContaining({
+      decisionKind: 'condition_only',
+      outputKind: 'stats_only_signal',
+      auditBucket: 'stats_only_signal_emitted',
+      shouldPush: true,
+      saved: false,
+      notified: true,
+    }));
+  });
+
+  test('does not enqueue stats-only advisory when AI says the no-odds signal is weak', async () => {
+    const footballApi = await import('../lib/football-api.js');
+    const recommendationsRepo = await import('../repos/recommendations.repo.js');
+    const matchAlertDeliveries = await import('../repos/match-alert-deliveries.repo.js');
+    const { callGemini } = await import('../lib/gemini.js');
+
+    vi.mocked(footballApi.fetchLiveOdds).mockResolvedValueOnce([] as never);
+    vi.mocked(footballApi.fetchPreMatchOdds).mockResolvedValueOnce([] as never);
+    vi.mocked(footballApi.fetchFixtureStatistics).mockResolvedValueOnce([
+      { team: { id: 1 }, statistics: [
+        { type: 'Total Shots', value: 5 },
+        { type: 'Shots on Goal', value: 1 },
+        { type: 'Corner Kicks', value: 2 },
+      ] },
+      { team: { id: 2 }, statistics: [
+        { type: 'Total Shots', value: 4 },
+        { type: 'Shots on Goal', value: 1 },
+        { type: 'Corner Kicks', value: 2 },
+      ] },
+    ] as never);
+    vi.mocked(footballApi.fetchFixtureEvents).mockResolvedValueOnce([] as never);
+    vi.mocked(callGemini).mockResolvedValueOnce(JSON.stringify({
+      should_push: false,
+      confidence: 24,
+      strength: 'medium',
+      summary_vi: 'Khong co live odds va so lieu chua tao tin hieu ro.',
+      summary_en: 'No live odds and the stats do not form a useful watch signal.',
+      reason_vi: 'Tempo thap, khong co bien co moi.',
+      market_family_hint: 'none',
+      suggested_action: 'avoid_chasing',
+      reasons: ['weak_stats', 'no_live_odds'],
+    }));
+
+    const result = await runPipelineBatch(['100']);
+
+    expect(callGemini).toHaveBeenCalledTimes(1);
+    expect(recommendationsRepo.createRecommendation).not.toHaveBeenCalled();
     expect(matchAlertDeliveries.enqueueStatsOnlyLiveSignalDeliveries).not.toHaveBeenCalled();
+    expect(result.results[0]).toEqual(expect.objectContaining({
+      decisionKind: 'no_bet',
+      outputKind: 'no_action',
+      auditBucket: 'stats_only_weak_trigger',
+      shouldPush: false,
+      saved: false,
+      notified: false,
+    }));
+    expect(result.results[0]?.debug?.llmCalled).toBe(true);
   });
 
   test('emits deterministic stats-only signal without LLM or recommendation save when live odds are unavailable', async () => {
@@ -2202,13 +2368,26 @@ describe('runPipelineBatch', () => {
 
   test('does not reuse pre-match odds for live analysis when real-time odds are unavailable', async () => {
     const footballApi = await import('../lib/football-api.js');
+    const recommendationsRepo = await import('../repos/recommendations.repo.js');
+    const { callGemini } = await import('../lib/gemini.js');
     vi.mocked(footballApi.fetchLiveOdds).mockResolvedValueOnce([]);
+    vi.mocked(callGemini).mockResolvedValueOnce(JSON.stringify({
+      should_push: false,
+      confidence: 20,
+      summary_vi: 'Khong co live odds va tin hieu chua du manh.',
+      summary_en: 'No live odds and the signal is not strong enough.',
+      reasons: ['no_live_odds'],
+    }));
 
     const result = await runPipelineBatch(['100']);
 
-    const { callGemini } = await import('../lib/gemini.js');
-    expect(callGemini).not.toHaveBeenCalled();
-    expect(result.results[0].debug?.skipReason).toBe('degraded_evidence');
+    expect(callGemini).toHaveBeenCalledWith(
+      expect.stringContaining('no usable live odds'),
+      'gemini-3.5-flash',
+      expect.objectContaining({ operation: 'tfi.stats_only_ai_advisory' }),
+    );
+    expect(recommendationsRepo.createRecommendation).not.toHaveBeenCalled();
+    expect(result.results[0].debug?.skipReason).toBe('stats_only_signal_weak_trigger');
     expect(result.results[0].debug?.oddsSource).toBe('none');
     expect(result.results[0].debug?.oddsAvailable).toBe(false);
     expect(footballApi.fetchPreMatchOdds).toHaveBeenCalledWith('100');
@@ -2250,6 +2429,7 @@ describe('runPipelineBatch', () => {
   test('uses pre-match when live is empty in auto-pipeline', async () => {
     const footballApi = await import('../lib/football-api.js');
     const watchlistRepo = await import('../repos/watchlist.repo.js');
+    const { callGemini } = await import('../lib/gemini.js');
 
     vi.mocked(footballApi.fetchFixturesByIds).mockResolvedValueOnce([{
       ...mockFixture,
@@ -2272,18 +2452,29 @@ describe('runPipelineBatch', () => {
         ],
       }],
     }] as never);
+    vi.mocked(callGemini).mockResolvedValueOnce(JSON.stringify({
+      should_push: false,
+      confidence: 20,
+      summary_vi: 'Khong co live odds, prematch chi la reference.',
+      summary_en: 'No live odds; prematch is only reference context.',
+      reasons: ['prematch_reference_only'],
+    }));
 
     const result = await runPipelineBatch(['100']);
 
-    const { callGemini } = await import('../lib/gemini.js');
     expect(['reference-prematch', 'none', undefined]).toContain(result.results[0].debug?.oddsSource);
-    expect(result.results[0].debug?.skipReason).toBe('degraded_evidence');
-    expect(vi.mocked(callGemini)).not.toHaveBeenCalled();
+    expect(result.results[0].debug?.skipReason).toBe('stats_only_signal_weak_trigger');
+    expect(vi.mocked(callGemini)).toHaveBeenCalledWith(
+      expect.stringContaining('referenceMarketKeys'),
+      'gemini-3.5-flash',
+      expect.objectContaining({ operation: 'tfi.stats_only_ai_advisory' }),
+    );
   });
 
   test('proceeds with no odds when live and pre-match are empty', async () => {
     const footballApi = await import('../lib/football-api.js');
     const watchlistRepo = await import('../repos/watchlist.repo.js');
+    const { callGemini } = await import('../lib/gemini.js');
 
     vi.mocked(footballApi.fetchFixturesByIds).mockResolvedValueOnce([{
       ...mockFixture,
@@ -2296,13 +2487,23 @@ describe('runPipelineBatch', () => {
 
     vi.mocked(footballApi.fetchLiveOdds).mockResolvedValueOnce([]);
     vi.mocked(footballApi.fetchPreMatchOdds).mockResolvedValueOnce([]);
+    vi.mocked(callGemini).mockResolvedValueOnce(JSON.stringify({
+      should_push: false,
+      confidence: 20,
+      summary_vi: 'Khong co live odds va prematch empty.',
+      summary_en: 'No live odds and no prematch reference odds.',
+      reasons: ['no_live_odds'],
+    }));
 
     const result = await runPipelineBatch(['100']);
 
     expect(result.results[0].debug?.oddsSource).toBe('none');
-    expect(result.results[0].debug?.skipReason).toBe('degraded_evidence');
-    const { callGemini } = await import('../lib/gemini.js');
-    expect(vi.mocked(callGemini)).not.toHaveBeenCalled();
+    expect(result.results[0].debug?.skipReason).toBe('stats_only_signal_weak_trigger');
+    expect(vi.mocked(callGemini)).toHaveBeenCalledWith(
+      expect.stringContaining('"referenceMarketKeys":[]'),
+      'gemini-3.5-flash',
+      expect.objectContaining({ operation: 'tfi.stats_only_ai_advisory' }),
+    );
   });
 
   test('handles Gemini error gracefully', async () => {

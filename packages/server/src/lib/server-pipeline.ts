@@ -133,7 +133,11 @@ import {
   type RuntimePolicyProductionPromotionDecision,
 } from './runtime-policy-production-promotion.js';
 import { buildRuntimeShadowSegmentMetadata } from './runtime-shadow-segments.js';
-import { evaluateStatsOnlyLiveSignal } from './stats-only-live-signal.js';
+import {
+  buildStatsOnlyAiAdvisoryPrompt,
+  evaluateStatsOnlyLiveSignal,
+  parseStatsOnlyAiAdvisoryResponse,
+} from './stats-only-live-signal.js';
 import {
   classifyLiveEvidence,
   routeLiveOutput,
@@ -5025,6 +5029,7 @@ async function processMatch(
         },
       });
     }
+    const model = options.modelOverride || settings.aiModel;
     const llmEligibility = await resolveLlmEligibility({
       promptContext,
       watchlistEntry,
@@ -5228,9 +5233,241 @@ async function processMatch(
           };
         }
 
+        let aiAdvisorySignal = null as ReturnType<typeof parseStatsOnlyAiAdvisoryResponse> | null;
+        const aiAdvisoryPrompt = buildStatsOnlyAiAdvisoryPrompt({
+          matchId,
+          homeTeam: homeName,
+          awayTeam: awayName,
+          matchDisplay,
+          league,
+          minute,
+          status,
+          score: { home: homeGoals, away: awayGoals },
+          stats: statsCompact,
+          events: eventsCompact,
+          oddsAvailable,
+          referenceMarketKeys,
+          statsAvailable,
+          statsSource,
+          evidenceMode,
+          providerWarnings,
+          providerClockLagMinutes: providerHealth.providerClockLagMinutes,
+          deterministicReasons: statsOnlySignal.reasons,
+        });
+        const aiAdvisoryStartedAt = Date.now();
+        audit({
+          category: 'PIPELINE',
+          action: 'STATS_ONLY_AI_ADVISORY_LLM_STARTED',
+          outcome: 'SUCCESS',
+          actor: 'auto-pipeline',
+          metadata: {
+            ...buildLlmGatewayAuditMetadata({ promptContext, settings, promptVersion: activePromptVersion, model }),
+            matchId,
+            matchDisplay,
+            promptChars: aiAdvisoryPrompt.length,
+            promptEstimatedTokens: estimateTokenCount(aiAdvisoryPrompt),
+            contract: 'odds-first-stats-only-live-signal',
+          },
+        });
+        try {
+          const aiAdvisoryText = await deps.callGemini(aiAdvisoryPrompt, model, {
+            operation: 'tfi.stats_only_ai_advisory',
+            featureKey: 'tfi.stats_only_ai_advisory',
+            matchId,
+            promptVersion: activePromptVersion,
+            metadata: {
+              analysisMode,
+              evidenceMode,
+              status,
+              minute,
+              oddsAvailable,
+              statsAvailable,
+              referenceMarketKeys,
+              deterministicReasons: statsOnlySignal.reasons,
+            },
+          });
+          aiAdvisorySignal = parseStatsOnlyAiAdvisoryResponse(aiAdvisoryText, {
+            matchId,
+            homeTeam: homeName,
+            awayTeam: awayName,
+            matchDisplay,
+            league,
+            minute,
+            status,
+            score: { home: homeGoals, away: awayGoals },
+            stats: statsCompact,
+            events: eventsCompact,
+            oddsAvailable,
+            referenceMarketKeys,
+            statsAvailable,
+            statsSource,
+            evidenceMode,
+            providerWarnings,
+            providerClockLagMinutes: providerHealth.providerClockLagMinutes,
+            deterministicReasons: statsOnlySignal.reasons,
+          });
+          audit({
+            category: 'PIPELINE',
+            action: 'STATS_ONLY_AI_ADVISORY_LLM_COMPLETED',
+            outcome: 'SUCCESS',
+            actor: 'auto-pipeline',
+            duration_ms: Date.now() - aiAdvisoryStartedAt,
+            metadata: {
+              ...buildLlmGatewayAuditMetadata({ promptContext, settings, promptVersion: activePromptVersion, model }),
+              matchId,
+              matchDisplay,
+              signalTriggered: aiAdvisorySignal.triggered,
+              signalType: aiAdvisorySignal.signalType,
+              signalStrength: aiAdvisorySignal.strength,
+              confidence: aiAdvisorySignal.confidence,
+              reasons: aiAdvisorySignal.reasons,
+              contract: 'odds-first-stats-only-live-signal',
+            },
+          });
+        } catch (err) {
+          audit({
+            category: 'PIPELINE',
+            action: err instanceof AiGatewayBlockedError
+              ? 'STATS_ONLY_AI_ADVISORY_LLM_BLOCKED'
+              : 'STATS_ONLY_AI_ADVISORY_LLM_FAILED',
+            outcome: err instanceof AiGatewayBlockedError ? 'SKIPPED' : 'FAILURE',
+            actor: 'auto-pipeline',
+            duration_ms: Date.now() - aiAdvisoryStartedAt,
+            error: err instanceof Error ? err.message : String(err),
+            metadata: {
+              ...buildLlmGatewayAuditMetadata({ promptContext, settings, promptVersion: activePromptVersion, model }),
+              matchId,
+              matchDisplay,
+              reason: err instanceof AiGatewayBlockedError ? err.evaluation.reason : undefined,
+              contract: 'odds-first-stats-only-live-signal',
+            },
+          });
+        }
+
+        if (aiAdvisorySignal?.triggered) {
+          const deliveryResult = await deps.enqueueStatsOnlyLiveSignalDeliveries({
+            matchId,
+            homeTeam: homeName,
+            awayTeam: awayName,
+            league,
+            status,
+            minute,
+            score,
+            kickoffAtUtc: null,
+            signal: aiAdvisorySignal,
+            referenceMarketKeys,
+          }).catch((error) => {
+            audit({
+              category: 'PIPELINE',
+              action: 'STATS_ONLY_AI_ADVISORY_EMIT_FAILED',
+              outcome: 'FAILURE',
+              actor: 'auto-pipeline',
+              error: error instanceof Error ? error.message : String(error),
+              metadata: {
+                matchId,
+                matchDisplay,
+                signalType: aiAdvisorySignal?.signalType,
+                triggerKey: aiAdvisorySignal?.triggerKey,
+                contract: 'odds-first-stats-only-live-signal',
+              },
+            });
+            return { enqueued: 0, deliveryIds: [] };
+          });
+          const outputDecision = routeLiveOutput({
+            evidenceMode,
+            llmCalled: true,
+            statsOnlySignalTriggered: true,
+            statsOnlySignalEnqueued: deliveryResult.enqueued,
+            advisoryOnly,
+            shadowMode,
+          });
+
+          audit({
+            category: 'PIPELINE',
+            action: 'STATS_ONLY_AI_ADVISORY_EMITTED',
+            outcome: deliveryResult.enqueued > 0 ? 'SUCCESS' : 'SKIPPED',
+            actor: 'auto-pipeline',
+            metadata: {
+              matchId,
+              matchDisplay,
+              minute,
+              score,
+              status,
+              signalType: aiAdvisorySignal.signalType,
+              signalStrength: aiAdvisorySignal.strength,
+              triggerKey: aiAdvisorySignal.triggerKey,
+              marketFamilyHint: aiAdvisorySignal.marketFamilyHint,
+              confidence: aiAdvisorySignal.confidence,
+              reasons: aiAdvisorySignal.reasons,
+              enqueued: deliveryResult.enqueued,
+              deliveryIds: deliveryResult.deliveryIds,
+              referenceMarketKeys,
+              ...providerDebugMetadata,
+              savedRecommendation: false,
+              llmCalled: true,
+              outputKind: outputDecision.outputKind,
+              auditBucket: outputDecision.auditBucket,
+              outputDecision,
+              contract: 'odds-first-stats-only-live-signal',
+            },
+          });
+
+          return {
+            matchId,
+            matchDisplay,
+            homeName,
+            awayName,
+            league,
+            minute,
+            score,
+            status,
+            success: true,
+            decisionKind: 'condition_only',
+            shouldPush: deliveryResult.enqueued > 0,
+            selection: aiAdvisorySignal.signalType ?? 'stats_only_ai_advisory',
+            confidence: Math.round((aiAdvisorySignal.confidence ?? 0) / 10),
+            saved: false,
+            notified: deliveryResult.enqueued > 0,
+            outputKind: outputDecision.outputKind,
+            auditBucket: outputDecision.auditBucket,
+            debug: {
+              analysisRunId,
+              shadowMode,
+              skippedAt: 'llm_eligibility',
+              skipReason: 'stats_only_ai_advisory_emitted',
+              analysisMode,
+              advisoryOnly,
+              oddsSource,
+              oddsAvailable,
+              statsAvailable,
+              statsSource,
+              evidenceMode,
+              statsFallbackUsed,
+              statsFallbackReason: statsFallbackReason || undefined,
+              ...providerDebugMetadata,
+              statsOnlySignal: {
+                ...aiAdvisorySignal,
+                enqueued: deliveryResult.enqueued,
+                deliveryIds: deliveryResult.deliveryIds,
+                llmCalled: true,
+                savedRecommendation: false,
+              } as unknown as Record<string, unknown>,
+              outputDecision,
+              outputKind: outputDecision.outputKind,
+              auditBucket: outputDecision.auditBucket,
+              savedRecommendation: outputDecision.savedRecommendation,
+              settlementEligible: outputDecision.settlementEligible,
+              roiEligible: outputDecision.roiEligible,
+              llmCalled: outputDecision.llmCalled,
+              preLlmLatencyMs: Date.now() - startedAt,
+              totalLatencyMs: Date.now() - startedAt,
+            },
+          };
+        }
+
         const weakOutputDecision = routeLiveOutput({
           evidenceMode,
-          llmCalled: false,
+          llmCalled: true,
           statsOnlySignalWeak: true,
           advisoryOnly,
           shadowMode,
@@ -5247,8 +5484,10 @@ async function processMatch(
             score,
             status,
             reasons: statsOnlySignal.reasons,
+            aiAdvisoryReasons: aiAdvisorySignal?.reasons,
+            aiAdvisoryConfidence: aiAdvisorySignal?.confidence,
             referenceMarketKeys,
-            llmCalled: false,
+            llmCalled: true,
             outputKind: weakOutputDecision.outputKind,
             auditBucket: weakOutputDecision.auditBucket,
             outputDecision: weakOutputDecision,
@@ -5256,6 +5495,57 @@ async function processMatch(
             contract: 'odds-first-stats-only-live-signal',
           },
         });
+
+        return {
+          matchId,
+          matchDisplay,
+          homeName,
+          awayName,
+          league,
+          minute,
+          score,
+          status,
+          success: true,
+          decisionKind: 'no_bet',
+          shouldPush: false,
+          selection: '',
+          confidence: 0,
+          saved: false,
+          notified: false,
+          outputKind: weakOutputDecision.outputKind,
+          auditBucket: weakOutputDecision.auditBucket,
+          debug: {
+            analysisRunId,
+            shadowMode,
+            skippedAt: 'llm_eligibility',
+            skipReason: 'stats_only_signal_weak_trigger',
+            analysisMode,
+            advisoryOnly,
+            oddsSource,
+            oddsAvailable,
+            statsAvailable,
+            statsSource,
+            evidenceMode,
+            statsFallbackUsed,
+            statsFallbackReason: statsFallbackReason || undefined,
+            ...providerDebugMetadata,
+            statsOnlySignal: {
+              ...statsOnlySignal,
+              aiAdvisory: aiAdvisorySignal ?? undefined,
+              llmCalled: true,
+              savedRecommendation: false,
+            } as unknown as Record<string, unknown>,
+            outputDecision: weakOutputDecision,
+            outputKind: weakOutputDecision.outputKind,
+            auditBucket: weakOutputDecision.auditBucket,
+            savedRecommendation: weakOutputDecision.savedRecommendation,
+            settlementEligible: weakOutputDecision.settlementEligible,
+            roiEligible: weakOutputDecision.roiEligible,
+            llmCalled: weakOutputDecision.llmCalled,
+            preLlmLatencyMs: Date.now() - startedAt,
+            totalLatencyMs: Date.now() - startedAt,
+          },
+        };
       }
 
       return {
@@ -5304,7 +5594,6 @@ async function processMatch(
       };
     }
     // 6. Thesis watch promote (skip Gemini when a deferred LLP thesis is ready)
-    const model = options.modelOverride || settings.aiModel;
     const preLlmLatencyMs = Date.now() - startedAt;
     const policyContextForPrompt = {
       previousRecommendations: prevRecs.map((r) => ({

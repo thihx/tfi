@@ -1,5 +1,8 @@
 import { describe, expect, test } from 'vitest';
-import { evaluateStatsOnlyLiveSignal } from '../lib/stats-only-live-signal.js';
+import {
+  evaluateStatsOnlyLiveSignal,
+  parseStatsOnlyAiAdvisoryResponse,
+} from '../lib/stats-only-live-signal.js';
 
 describe('stats-only live signal evaluator', () => {
   test('triggers zero-zero pressure without live odds', () => {
@@ -71,5 +74,50 @@ describe('stats-only live signal evaluator', () => {
     expect(signal.triggered).toBe(false);
     expect(signal.reasons).toEqual(['live_odds_available']);
   });
-});
 
+  test('parses AI advisory as a no-save stats-only signal with no-odds disclosure', () => {
+    const signal = parseStatsOnlyAiAdvisoryResponse(JSON.stringify({
+      should_push: true,
+      confidence: 74,
+      strength: 'medium',
+      summary_vi: 'Ap luc dang tang, chi nen theo doi.',
+      summary_en: 'Pressure is increasing, watch only.',
+      suggested_action: 'review_live_market',
+      market_family_hint: 'goals_ou',
+      reasons: ['stats_events_available'],
+    }), {
+      matchId: '100',
+      homeTeam: 'South Korea',
+      awayTeam: 'Czech Republic',
+      matchDisplay: 'South Korea vs Czech Republic',
+      league: 'World Cup',
+      minute: 65,
+      status: '2H',
+      score: { home: 0, away: 1 },
+      stats: {
+        shots: { home: 12, away: 10 },
+        shots_on_target: { home: 4, away: 4 },
+        corners: { home: 3, away: 2 },
+      },
+      events: [{ minute: 58, team: 'Czech Republic', type: 'Goal', detail: 'Normal Goal' }],
+      oddsAvailable: false,
+      statsAvailable: true,
+      statsSource: 'provider',
+      evidenceMode: 'stats_only',
+      referenceMarketKeys: [],
+    });
+
+    expect(signal).toEqual(expect.objectContaining({
+      triggered: true,
+      signalType: 'ai_stats_only_advisory',
+      source: 'ai_advisory',
+      confidence: 74,
+      strength: 'medium',
+      triggerKey: 'stats_only:ai_stats_only_advisory:100:0-1:60',
+      suggestedAction: 'review_live_market',
+      marketFamilyHint: 'goals_ou',
+    }));
+    expect(signal.summaryVi.toLowerCase()).toContain('live odds');
+    expect(signal.summaryEn.toLowerCase()).toContain('no live odds');
+  });
+});
