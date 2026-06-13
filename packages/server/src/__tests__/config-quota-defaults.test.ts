@@ -14,6 +14,7 @@ describe('provider quota protective defaults', () => {
     }));
     vi.stubEnv('JOB_REFRESH_LIVE_MATCHES_MAX_PUBLIC_MATCHES', '');
     vi.stubEnv('JOB_REFRESH_LIVE_MATCHES_PUBLIC_MS', '');
+    vi.stubEnv('JOB_REFRESH_LIVE_MATCHES_REALTIME_FIXTURE_MS', '');
     vi.stubEnv('JOB_CHECK_LIVE_MS', '');
     vi.resetModules();
 
@@ -24,6 +25,7 @@ describe('provider quota protective defaults', () => {
     expect(config.jobDeliverTelegramNotificationsMs).toBe(3_000);
     expect(config.jobRefreshLiveMatchesMaxPublicMatches).toBe(20);
     expect(config.jobRefreshLiveMatchesPublicMs).toBe(15_000);
+    expect(config.jobRefreshLiveMatchesRealtimeFixtureMs).toBe(5_000);
     expect(config.jobCheckLiveMs).toBe(2 * 60_000);
   });
 
@@ -34,6 +36,7 @@ describe('provider quota protective defaults', () => {
     }));
     vi.stubEnv('JOB_REFRESH_LIVE_MATCHES_MAX_PUBLIC_MATCHES', '3');
     vi.stubEnv('JOB_REFRESH_LIVE_MATCHES_PUBLIC_MS', '5000');
+    vi.stubEnv('JOB_REFRESH_LIVE_MATCHES_REALTIME_FIXTURE_MS', '4000');
     vi.stubEnv('JOB_CHECK_LIVE_MS', '30000');
     vi.resetModules();
 
@@ -41,6 +44,7 @@ describe('provider quota protective defaults', () => {
 
     expect(config.jobRefreshLiveMatchesMaxPublicMatches).toBe(3);
     expect(config.jobRefreshLiveMatchesPublicMs).toBe(5_000);
+    expect(config.jobRefreshLiveMatchesRealtimeFixtureMs).toBe(4_000);
     expect(config.jobCheckLiveMs).toBe(30_000);
   });
 });

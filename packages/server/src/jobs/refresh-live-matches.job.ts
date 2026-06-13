@@ -2,6 +2,7 @@ import type { ApiFixture, ApiFixtureStat } from '../lib/football-api.js';
 import { config } from '../config.js';
 import { skipIfFootballApiCircuitOpen } from '../lib/football-api-circuit.js';
 import { kickoffAtUtcFromFixtureDate } from '../lib/kickoff-time.js';
+import { isPublicLiveBoardActive } from '../lib/live-board-activity.js';
 import { ensureFixtureStatistics, ensureFixturesForMatchIds } from '../lib/provider-insight-cache.js';
 import { archiveFinishedMatches, type MatchHistoryArchiveInput } from '../repos/matches-history.repo.js';
 import * as matchRepo from '../repos/matches.repo.js';
@@ -16,6 +17,9 @@ const TRACK_NS_AFTER_KICKOFF_MIN = 10;
 const STAT_CONCURRENCY = 4;
 const DEFAULT_MAX_PUBLIC_MATCHES = 20;
 const DEFAULT_PUBLIC_REFRESH_MS = 15_000;
+const DEFAULT_REALTIME_FIXTURE_TTL_MS = 5_000;
+const FORCE_TERMINAL_REFRESH_FROM_MINUTE = 88;
+const FORCE_TERMINAL_REFRESH_STATUSES = new Set(['2H', 'ET', 'P', 'LIVE']);
 
 let lastPublicRefreshAt = 0;
 
@@ -41,6 +45,20 @@ function statCount(stats: ApiFixtureStat[], teamIdx: 0 | 1, name: string): numbe
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function shouldForceTerminalRefresh(row: matchRepo.MatchRow): boolean {
+  const status = String(row.status || '').trim().toUpperCase();
+  const minute = Number(row.current_minute ?? 0);
+  return FORCE_TERMINAL_REFRESH_STATUSES.has(status)
+    && Number.isFinite(minute)
+    && minute >= FORCE_TERMINAL_REFRESH_FROM_MINUTE;
+}
+
+function forceRefreshIdsFor(rows: matchRepo.MatchRow[]): string[] {
+  return rows
+    .filter((row) => String(row.status || '').trim().toUpperCase() === 'NS' || shouldForceTerminalRefresh(row))
+    .map((row) => String(row.match_id));
+}
+
 function publicRefreshLimit(): number {
   const configured = Number(config.jobRefreshLiveMatchesMaxPublicMatches);
   if (!Number.isFinite(configured)) return DEFAULT_MAX_PUBLIC_MATCHES;
@@ -50,6 +68,12 @@ function publicRefreshLimit(): number {
 function publicRefreshIntervalMs(): number {
   const configured = Number(config.jobRefreshLiveMatchesPublicMs);
   if (!Number.isFinite(configured)) return DEFAULT_PUBLIC_REFRESH_MS;
+  return Math.max(0, Math.floor(configured));
+}
+
+function realtimeFixtureTtlMs(): number {
+  const configured = Number(config.jobRefreshLiveMatchesRealtimeFixtureMs);
+  if (!Number.isFinite(configured)) return DEFAULT_REALTIME_FIXTURE_TTL_MS;
   return Math.max(0, Math.floor(configured));
 }
 
@@ -152,7 +176,9 @@ export async function refreshLiveMatchesJob(): Promise<{
   ]);
   const now = Date.now();
   const maxPublicMatches = publicRefreshLimit();
-  const includePublicCandidates = maxPublicMatches > 0 && isPublicRefreshDue(now);
+  const publicRefreshDue = maxPublicMatches > 0 && isPublicRefreshDue(now);
+  const publicBoardActive = publicRefreshDue ? await isPublicLiveBoardActive() : false;
+  const includePublicCandidates = publicRefreshDue && publicBoardActive;
   if (realtimeInterestMatchIds.size === 0 && maxPublicMatches <= 0) {
     return {
       tracked: 0,
@@ -161,6 +187,16 @@ export async function refreshLiveMatchesJob(): Promise<{
       statsRefreshed: 0,
       skipped: true,
       skipReason: 'no_active_realtime_interest',
+    };
+  }
+  if (realtimeInterestMatchIds.size === 0 && publicRefreshDue && !publicBoardActive) {
+    return {
+      tracked: 0,
+      refreshed: 0,
+      live: 0,
+      statsRefreshed: 0,
+      skipped: true,
+      skipReason: 'public_refresh_inactive',
     };
   }
   if (realtimeInterestMatchIds.size === 0 && !includePublicCandidates) {
@@ -202,19 +238,33 @@ export async function refreshLiveMatchesJob(): Promise<{
   }
 
   const fixtureIds = tracked.map((row) => row.match_id);
-  const transitionSensitiveFixtureIds = tracked
-    .filter((row) => String(row.status || '').trim().toUpperCase() === 'NS')
-    .map((row) => String(row.match_id));
+  const realtimeTracked = tracked.filter((row) => realtimeInterestMatchIds.has(String(row.match_id)));
+  const publicTracked = tracked.filter((row) => !realtimeInterestMatchIds.has(String(row.match_id)));
   const liveCount = tracked.filter((row) => LIVE_STATUSES.has(String(row.status || '').trim().toUpperCase())).length;
 
   await reportJobProgress(JOB, 'fixtures', `Refreshing ${fixtureIds.length} tracked fixtures...`, 35);
-  // The Matches live board needs score/status transitions, especially FT, to
-  // land inside the scheduler cadence. Keep detailed stats cached below, but
-  // force the lightweight fixture refresh every tick.
-  const fixtures = await ensureFixturesForMatchIds(fixtureIds, {
-    freshnessMode: 'real_required',
-    forceRefreshIds: transitionSensitiveFixtureIds,
-  });
+  // Keep scheduler/UI cadence fast while avoiding a provider request on every
+  // 3s tick. Watched/alerted rows get a short TTL; public rows use normal cache TTL.
+  const [realtimeFixtures, publicFixtures] = await Promise.all([
+    realtimeTracked.length > 0
+      ? ensureFixturesForMatchIds(realtimeTracked.map((row) => String(row.match_id)), {
+        freshnessMode: 'stale_safe',
+        fixtureTtlMs: realtimeFixtureTtlMs(),
+        forceRefreshIds: forceRefreshIdsFor(realtimeTracked),
+      })
+      : Promise.resolve([]),
+    publicTracked.length > 0
+      ? ensureFixturesForMatchIds(publicTracked.map((row) => String(row.match_id)), {
+        freshnessMode: 'stale_safe',
+        forceRefreshIds: forceRefreshIdsFor(publicTracked),
+      })
+      : Promise.resolve([]),
+  ]);
+  const fixturesById = new Map<string, ApiFixture>();
+  for (const fixture of realtimeFixtures.concat(publicFixtures)) {
+    fixturesById.set(String(fixture.fixture.id), fixture);
+  }
+  const fixtures = [...fixturesById.values()];
   if (includePublicCandidates) {
     lastPublicRefreshAt = now;
   }

@@ -37,6 +37,7 @@ import {
   fetchConditionAlertPresets,
   fetchFavoriteLeagueSelection,
   fetchMatchAlertRules,
+  markMatchesLiveBoardActive,
   lookupMatchLiveStreams,
   type MatchLiveStreamLink,
   type MatchLiveStreamLookupResult,
@@ -486,6 +487,14 @@ export function MatchesTab() {
   useEffect(() => {
     void loadAllDataRef.current(true);
   }, []);
+
+  useEffect(() => {
+    void markMatchesLiveBoardActive(config);
+    const timer = window.setInterval(() => {
+      void markMatchesLiveBoardActive(config);
+    }, 10_000);
+    return () => window.clearInterval(timer);
+  }, [config]);
 
   useEffect(() => {
     let cancelled = false;

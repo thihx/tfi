@@ -6,6 +6,7 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 import {
   fetchMatches,
+  markMatchesLiveBoardActive,
   fetchWatchlist,
   fetchWatchlistItem,
   fetchRecommendations,
@@ -63,6 +64,15 @@ describe('matches API', () => {
     const result = await fetchMatches(config);
     expect(result).toEqual(data);
     expect(fetch).toHaveBeenCalledWith('http://localhost:4000/api/matches', expect.objectContaining({ method: 'GET' }));
+  });
+
+  test('markMatchesLiveBoardActive calls POST /api/matches/live-board/active', async () => {
+    globalThis.fetch = mockFetch({ active: true });
+    await markMatchesLiveBoardActive(config);
+    expect(fetch).toHaveBeenCalledWith(
+      'http://localhost:4000/api/matches/live-board/active',
+      expect.objectContaining({ method: 'POST' }),
+    );
   });
 });
 

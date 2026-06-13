@@ -125,6 +125,10 @@ export async function fetchMatches(config: AppConfig): Promise<Match[]> {
   return pgFetch<Match[]>(config, '/api/matches');
 }
 
+export async function markMatchesLiveBoardActive(config: AppConfig): Promise<void> {
+  await pgPost<{ active: true }>(config, '/api/matches/live-board/active', {});
+}
+
 export interface MatchLiveStreamLookupResult {
   matchId: string;
   found: boolean;

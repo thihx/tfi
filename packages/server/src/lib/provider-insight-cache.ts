@@ -75,6 +75,7 @@ export interface EnsureFixtureStatisticsOptions {
 export interface EnsureFixturesOptions {
   freshnessMode?: ProviderFreshnessMode;
   forceRefreshIds?: string[];
+  fixtureTtlMs?: number;
 }
 
 interface ProviderInsightDeps {
@@ -143,6 +144,12 @@ function fixtureTtlMs(status: string, minute: number | null): number {
   if (LIVE_STATUSES.has(normalized)) return minute != null && minute >= 75 ? 15 * 1000 : 30 * 1000;
   if (normalized === 'NS' || normalized === '') return 5 * 60 * 1000;
   return 2 * 60 * 1000;
+}
+
+function effectiveFixtureTtlMs(status: string, minute: number | null, options: EnsureFixturesOptions): number {
+  const configured = Number(options.fixtureTtlMs);
+  if (Number.isFinite(configured) && configured >= 0) return configured;
+  return fixtureTtlMs(status, minute);
 }
 
 function detailTtlMs(status: string, minute: number | null): number {
@@ -558,7 +565,7 @@ export async function ensureFixturesForMatchIds(
     const fixture = fixturePayloadOf(row);
     const status = fixture?.fixture?.status?.short ?? row?.match_status ?? '';
     const minute = fixture?.fixture?.status?.elapsed ?? row?.match_minute ?? null;
-    const freshness = classifyFreshness(ageMs(row?.cached_at, now), fixtureTtlMs(status, minute));
+    const freshness = classifyFreshness(ageMs(row?.cached_at, now), effectiveFixtureTtlMs(status, minute, options));
     if (freshness !== 'fresh') return true;
     return bypassStartedCache(mode, status);
   });
@@ -587,7 +594,7 @@ export async function ensureFixturesForMatchIds(
       const fixture = fixturePayloadOf(row);
       const status = fixture?.fixture?.status?.short ?? row?.match_status ?? '';
       const minute = fixture?.fixture?.status?.elapsed ?? row?.match_minute ?? null;
-      const freshness = classifyFreshness(ageMs(row?.cached_at, deps.now()), fixtureTtlMs(status, minute));
+      const freshness = classifyFreshness(ageMs(row?.cached_at, deps.now()), effectiveFixtureTtlMs(status, minute, options));
       if (freshness !== 'fresh' && !keepStalePayload(mode, status)) {
         return null;
       }

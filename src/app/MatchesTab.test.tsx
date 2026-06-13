@@ -15,6 +15,7 @@ const mockFetchMatchAlertRules = vi.fn().mockResolvedValue([]);
 const mockCreateMatchAlertRule = vi.fn().mockResolvedValue({ id: 77, matchId: '200', alertKind: 'match_start', enabled: true, source: 'manual' });
 const mockDeleteMatchAlertRule = vi.fn().mockResolvedValue({ deleted: true });
 const mockFetchConditionAlertPresets = vi.fn().mockResolvedValue([]);
+const mockMarkMatchesLiveBoardActive = vi.fn().mockResolvedValue(undefined);
 const mockLookupMatchLiveStreams = vi.fn().mockResolvedValue([]);
 const mockApplyFavoriteLeaguesToWatchlist = vi.fn().mockResolvedValue({
   error: null,
@@ -155,6 +156,7 @@ vi.mock('@/lib/services/api', () => ({
   createMatchAlertRule: mockCreateMatchAlertRule,
   deleteMatchAlertRule: mockDeleteMatchAlertRule,
   fetchConditionAlertPresets: mockFetchConditionAlertPresets,
+  markMatchesLiveBoardActive: mockMarkMatchesLiveBoardActive,
   lookupMatchLiveStreams: mockLookupMatchLiveStreams,
   applyFavoriteLeaguesToWatchlist: mockApplyFavoriteLeaguesToWatchlist,
   evaluateWatchConditionPreview: vi.fn().mockResolvedValue({
@@ -224,6 +226,7 @@ beforeEach(async () => {
   });
   mockFetchMatchAlertRules.mockResolvedValue([]);
   mockFetchConditionAlertPresets.mockResolvedValue([]);
+  mockMarkMatchesLiveBoardActive.mockResolvedValue(undefined);
   mockLookupMatchLiveStreams.mockResolvedValue([]);
   mockCreateMatchAlertRule.mockResolvedValue({ id: 77, matchId: '200', alertKind: 'match_start', enabled: true, source: 'manual' });
   mockDeleteMatchAlertRule.mockResolvedValue({ deleted: true });
@@ -279,6 +282,16 @@ beforeEach(async () => {
 });
 
 describe('MatchesTab', () => {
+  it('marks the Matches live board active while mounted', async () => {
+    render(<MatchesTab />);
+
+    await waitFor(() => {
+      expect(mockMarkMatchesLiveBoardActive).toHaveBeenCalledWith(
+        expect.objectContaining({ apiUrl: 'http://localhost:4000' }),
+      );
+    });
+  });
+
   it('shows kickoff alert action only before a match starts', async () => {
     const user = userEvent.setup();
     mockState.matches = [baseMatches[0]!, baseMatches[1]!].map((match) => ({ ...match }));

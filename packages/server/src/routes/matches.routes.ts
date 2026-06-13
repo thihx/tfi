@@ -3,6 +3,7 @@
 // ============================================================
 
 import type { FastifyInstance } from 'fastify';
+import { markPublicLiveBoardActive } from '../lib/live-board-activity.js';
 import { lookupLiveStreamLinks, parseLiveStreamSourcesAsProviders } from '../lib/live-stream-locator.js';
 import { filterLiveStreamSourcesForRegion, resolveViewerRegion } from '../lib/live-stream-region.js';
 import { loadLiveStreamLocatorSettings } from '../lib/live-stream-settings.js';
@@ -12,6 +13,16 @@ export async function matchRoutes(app: FastifyInstance) {
   app.get('/api/matches', async (_req, reply) => {
     reply.header('Cache-Control', 'no-store');
     return repo.getActiveLeagueMatches();
+  });
+
+  app.post('/api/matches/live-board/active', async (req, reply) => {
+    reply.header('Cache-Control', 'no-store');
+    try {
+      await markPublicLiveBoardActive();
+    } catch (err) {
+      req.log.warn({ err }, 'Failed to mark Matches live board activity');
+    }
+    return { active: true };
   });
 
   app.get<{ Querystring: { statuses?: string } }>('/api/matches/by-status', async (req) => {

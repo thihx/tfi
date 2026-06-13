@@ -2,13 +2,19 @@
 // Integration tests — Matches routes
 // ============================================================
 
-import { describe, test, expect, vi, beforeAll, afterAll } from 'vitest';
+import { describe, test, expect, vi, beforeAll, beforeEach, afterAll } from 'vitest';
 import { buildApp } from './helpers.js';
 import type { FastifyInstance } from 'fastify';
+
+const mockMarkPublicLiveBoardActive = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 
 vi.mock('../repos/settings.repo.js', () => ({
   getSettings: vi.fn().mockResolvedValue({}),
   saveSettings: vi.fn(),
+}));
+
+vi.mock('../lib/live-board-activity.js', () => ({
+  markPublicLiveBoardActive: mockMarkPublicLiveBoardActive,
 }));
 
 vi.mock('../repos/matches.repo.js', () => ({
@@ -43,6 +49,11 @@ beforeAll(async () => {
   app = await buildApp(matchRoutes);
 });
 
+beforeEach(() => {
+  mockMarkPublicLiveBoardActive.mockClear();
+  mockMarkPublicLiveBoardActive.mockResolvedValue(undefined);
+});
+
 afterAll(async () => {
   await app.close();
 });
@@ -54,6 +65,15 @@ describe('GET /api/matches', () => {
     const body = res.json();
     expect(body).toHaveLength(2);
     expect(body[0].match_id).toBe('1');
+  });
+});
+
+describe('POST /api/matches/live-board/active', () => {
+  test('marks the public live board active for the refresh job', async () => {
+    const res = await app.inject({ method: 'POST', url: '/api/matches/live-board/active' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ active: true });
+    expect(mockMarkPublicLiveBoardActive).toHaveBeenCalledOnce();
   });
 });
 
