@@ -163,7 +163,7 @@ export async function lookupMatchLiveStreams(
 
 export interface LiveStreamViewerRegion {
   country: string | null;
-  source: 'cloudflare' | 'trusted_proxy_header' | 'geoip' | 'override' | 'unknown';
+  source: 'cloudflare' | 'trusted_proxy_header' | 'geoip' | 'accept_language' | 'override' | 'unknown';
   confidence: 'high' | 'medium' | 'low';
 }
 

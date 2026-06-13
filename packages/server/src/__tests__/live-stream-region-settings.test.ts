@@ -1,7 +1,9 @@
 import { describe, expect, test } from 'vitest';
+import type { FastifyRequest } from 'fastify';
 import {
   filterLiveStreamSourcesForRegion,
   normalizeCountryCode,
+  resolveViewerRegion,
 } from '../lib/live-stream-region.js';
 import {
   normalizeLiveStreamLocatorSettingsPatch,
@@ -106,6 +108,21 @@ describe('live stream region and source settings', () => {
     expect(filtered.map((source) => source.id)).toEqual(['vn', 'global']);
   });
 
+  test('uses Accept-Language region as a low-confidence viewer country fallback', () => {
+    const viewerRegion = resolveViewerRegion({
+      headers: { 'accept-language': 'vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7' },
+      ip: '203.0.113.10',
+    } as unknown as FastifyRequest);
+    const filtered = filterLiveStreamSourcesForRegion(
+      sources,
+      viewerRegion,
+      { enabled: true, unknownPolicy: 'global_only' },
+    );
+
+    expect(viewerRegion).toEqual({ country: 'VN', source: 'accept_language', confidence: 'low' });
+    expect(filtered.map((source) => source.id)).toEqual(['vn', 'global']);
+  });
+
   test('handles unknown country policies', () => {
     const unknownRegion = { country: null, source: 'unknown' as const, confidence: 'low' as const };
 
@@ -141,4 +158,3 @@ describe('live stream region and source settings', () => {
     });
   });
 });
-

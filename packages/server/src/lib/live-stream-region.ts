@@ -6,7 +6,7 @@ export type LiveStreamRegionUnknownPolicy = 'global_only' | 'hide_all' | 'allow_
 
 export interface ResolvedViewerRegion {
   country: string | null;
-  source: 'cloudflare' | 'trusted_proxy_header' | 'geoip' | 'override' | 'unknown';
+  source: 'cloudflare' | 'trusted_proxy_header' | 'geoip' | 'accept_language' | 'override' | 'unknown';
   confidence: 'high' | 'medium' | 'low';
 }
 
@@ -37,6 +37,36 @@ function parseGeoipCountryMap(): Record<string, string> {
 
 function normalizeIp(value: string): string {
   return value.trim().replace(/^::ffff:/, '');
+}
+
+function countryFromAcceptLanguage(value: string): string | null {
+  const candidates = value
+    .split(',')
+    .map((part, index) => {
+      const [tag = '', ...params] = part.trim().split(';');
+      const qParam = params.find((param) => param.trim().toLowerCase().startsWith('q='));
+      const q = qParam ? Number(qParam.split('=')[1]) : 1;
+      return {
+        tag: tag.trim(),
+        q: Number.isFinite(q) ? q : 0,
+        index,
+      };
+    })
+    .filter((entry) => entry.tag && entry.q > 0)
+    .sort((a, b) => b.q - a.q || a.index - b.index);
+
+  for (const candidate of candidates) {
+    const subtags = candidate.tag.split('-').map((part) => part.trim()).filter(Boolean);
+    for (let index = subtags.length - 1; index >= 0; index -= 1) {
+      const region = subtags[index];
+      if (!/^[A-Za-z]{2}$/.test(region ?? '')) continue;
+      const country = normalizeCountryCode(region);
+      if (country && country !== '*') return country;
+      break;
+    }
+  }
+
+  return null;
 }
 
 export function normalizeCountryCode(value: unknown): string | null {
@@ -87,6 +117,11 @@ export function resolveViewerRegion(req: FastifyRequest): ResolvedViewerRegion {
   const geoipCountry = geoipMap[normalizeIp(req.ip)];
   if (geoipCountry) {
     return { country: geoipCountry, source: 'geoip', confidence: 'medium' };
+  }
+
+  const acceptLanguageCountry = countryFromAcceptLanguage(firstHeaderValue(req.headers['accept-language']));
+  if (acceptLanguageCountry) {
+    return { country: acceptLanguageCountry, source: 'accept_language', confidence: 'low' };
   }
 
   return { country: null, source: 'unknown', confidence: 'low' };
