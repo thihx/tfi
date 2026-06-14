@@ -7,6 +7,7 @@ import type { FastifyInstance } from 'fastify';
 import { config } from '../config.js';
 import { audit } from '../lib/audit.js';
 import { requireCurrentUser } from '../lib/authz.js';
+import { withFootballApiRequestContext } from '../lib/football-api-request-context.js';
 import { callGemini } from '../lib/gemini.js';
 import { resolveMatchOdds } from '../lib/odds-resolver.js';
 import { ensureFixturesForMatchIds, ensureScoutInsight } from '../lib/provider-insight-cache.js';
@@ -17,6 +18,11 @@ import { runPromptOnlyAnalysisForMatch, type MatchPipelineResult } from '../lib/
 
 function buildQuickChartUrl(chartConfig: Record<string, unknown>): string {
   return `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(chartConfig))}&w=500&h=240&bkg=white`;
+}
+
+function realtimeFixtureTtlMs(): number {
+  const configured = Number(config.jobRefreshLiveMatchesRealtimeFixtureMs);
+  return Number.isFinite(configured) ? Math.max(0, Math.floor(configured)) : 5_000;
 }
 
 function toPromptOnlyAuditMetadata(
@@ -60,7 +66,11 @@ export async function proxyRoutes(app: FastifyInstance) {
   // POST /api/proxy/football/live-fixtures
   app.post<{ Body: { matchIds: string[] } }>('/api/proxy/football/live-fixtures', async (req, reply) => {
     try {
-      const fixtures = await ensureFixturesForMatchIds(req.body.matchIds, { freshnessMode: 'real_required' });
+      const fixtures = await withFootballApiRequestContext({ consumer: 'proxy-live-fixtures' }, () =>
+        ensureFixturesForMatchIds(req.body.matchIds, {
+          freshnessMode: 'stale_safe',
+          fixtureTtlMs: realtimeFixtureTtlMs(),
+        }));
       return fixtures;
     } catch (err) {
       app.log.error(err, 'proxy/football/live-fixtures failed');
@@ -87,18 +97,19 @@ export async function proxyRoutes(app: FastifyInstance) {
       const freshnessMode = ['1H', '2H', 'HT', 'ET', 'BT', 'P', 'LIVE', 'INT'].includes(liveStatus)
         ? 'real_required'
         : 'stale_safe';
-      const resolved = await resolveMatchOdds({
-        matchId: req.body.matchId,
-        homeTeam: req.body.homeTeam,
-        awayTeam: req.body.awayTeam,
-        kickoffTimestamp: req.body.kickoffTimestamp,
-        leagueName: req.body.leagueName,
-        leagueCountry: req.body.leagueCountry,
-        status: req.body.status,
-        matchMinute: req.body.matchMinute,
-        consumer: 'proxy-route',
-        freshnessMode,
-      });
+      const resolved = await withFootballApiRequestContext({ consumer: 'proxy-football-odds' }, () =>
+        resolveMatchOdds({
+          matchId: req.body.matchId,
+          homeTeam: req.body.homeTeam,
+          awayTeam: req.body.awayTeam,
+          kickoffTimestamp: req.body.kickoffTimestamp,
+          leagueName: req.body.leagueName,
+          leagueCountry: req.body.leagueCountry,
+          status: req.body.status,
+          matchMinute: req.body.matchMinute,
+          consumer: 'proxy-route',
+          freshnessMode,
+        }));
 
       return {
         odds_source: resolved.oddsSource,
@@ -123,18 +134,21 @@ export async function proxyRoutes(app: FastifyInstance) {
 
     try {
       const freshnessMode = hasStarted ? 'real_required' : 'stale_safe';
-      const fixtures = await ensureFixturesForMatchIds([fixtureId], { freshnessMode });
-      const fixture = fixtures[0] ?? null;
-
       const seasonValue = season ?? (new Date().getMonth() < 6 ? new Date().getFullYear() - 1 : new Date().getFullYear());
-      const scout = await ensureScoutInsight(fixtureId, {
-        fixture,
-        leagueId,
-        season: seasonValue,
-        status,
-        consumer: hasStarted ? 'proxy-scout-live' : 'proxy-scout-prematch',
-        sampleProviderData: false,
-        freshnessMode,
+      const consumer = hasStarted ? 'proxy-scout-live' : 'proxy-scout-prematch';
+      const { fixture, scout } = await withFootballApiRequestContext({ consumer }, async () => {
+        const fixtures = await ensureFixturesForMatchIds([fixtureId], { freshnessMode });
+        const fixture = fixtures[0] ?? null;
+        const scout = await ensureScoutInsight(fixtureId, {
+          fixture,
+          leagueId,
+          season: seasonValue,
+          status,
+          consumer,
+          sampleProviderData: false,
+          freshnessMode,
+        });
+        return { fixture, scout };
       });
 
       return {
@@ -159,7 +173,8 @@ export async function proxyRoutes(app: FastifyInstance) {
       const season = Number(req.query.season) || new Date().getFullYear() - (new Date().getMonth() < 7 ? 1 : 0);
       const next = Math.min(Number(req.query.next) || 10, 20);
       try {
-        const fixtures = await fetchLeagueFixturesFromReferenceProvider(leagueId, season, next);
+        const fixtures = await withFootballApiRequestContext({ consumer: 'proxy-league-fixtures' }, () =>
+          fetchLeagueFixturesFromReferenceProvider(leagueId, season, next));
         return fixtures;
       } catch (err) {
         app.log.error(err, 'proxy/football/league-fixtures failed');
@@ -208,15 +223,18 @@ export async function proxyRoutes(app: FastifyInstance) {
             });
           }
           const promptOnlyResult = typeof matchId === 'string' && matchId.trim() && !(typeof prompt === 'string' && prompt.trim())
-            ? await runPromptOnlyAnalysisForMatch(matchId.trim(), {
-              forceAnalyze: forceAnalyze === true,
-              modelOverride: resolvedModel,
-              userQuestion: advisoryOnly ? question?.trim() : undefined,
-              followUpHistory: Array.isArray(history) ? history.filter((entry) => entry && (entry.role === 'user' || entry.role === 'assistant') && typeof entry.text === 'string') : undefined,
-              advisoryOnly,
-              ensureStrategicContext: true,
-              ...(advisoryOnly ? { sampleProviderData: true } : {}),
-            })
+            ? await withFootballApiRequestContext(
+              { consumer: advisoryOnly ? 'manual-ask-ai-advisory' : 'manual-ask-ai' },
+              () => runPromptOnlyAnalysisForMatch(matchId.trim(), {
+                forceAnalyze: forceAnalyze === true,
+                modelOverride: resolvedModel,
+                userQuestion: advisoryOnly ? question?.trim() : undefined,
+                followUpHistory: Array.isArray(history) ? history.filter((entry) => entry && (entry.role === 'user' || entry.role === 'assistant') && typeof entry.text === 'string') : undefined,
+                advisoryOnly,
+                ensureStrategicContext: true,
+                ...(advisoryOnly ? { sampleProviderData: true } : {}),
+              }),
+            )
             : null;
           const text = typeof prompt === 'string' && prompt.trim()
             ? await callGemini(prompt, resolvedModel, {

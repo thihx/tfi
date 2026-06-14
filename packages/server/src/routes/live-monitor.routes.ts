@@ -10,6 +10,7 @@ import { requireCurrentUser } from '../lib/authz.js';
 import { checkCoarseStalenessServer } from '../lib/server-pipeline-gates.js';
 import { consumeManualAiQuota, resolveSubscriptionAccess, sendEntitlementError } from '../lib/subscription-access.js';
 import { buildLiveOutputOperatorReport } from '../lib/live-output-operator-report.js';
+import { withFootballApiRequestContext } from '../lib/football-api-request-context.js';
 import {
   runManualAnalysisForMatch,
   type MatchPipelineResult,
@@ -298,11 +299,14 @@ export async function liveMonitorRoutes(app: FastifyInstance) {
             advisoryOnly,
           });
         }
-        const result = await runManualAnalysisForMatch(matchId, {
-          userQuestion: question || undefined,
-          followUpHistory: history,
-          advisoryOnly,
-        });
+        const result = await withFootballApiRequestContext(
+          { consumer: advisoryOnly ? 'live-monitor-manual-advisory' : 'live-monitor-manual-analyze' },
+          () => runManualAnalysisForMatch(matchId, {
+            userQuestion: question || undefined,
+            followUpHistory: history,
+            advisoryOnly,
+          }),
+        );
         return { result };
       } catch (error) {
         const entitlement = sendEntitlementError(error);

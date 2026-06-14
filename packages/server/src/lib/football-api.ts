@@ -76,6 +76,36 @@ export interface ApiFixture {
 
 const API_TIMEOUT_MS = 15_000;
 const MAX_RETRIES = 2;
+const inFlightApiGets = new Map<string, Promise<unknown[]>>();
+
+function normalizeProviderParamForKey(key: string, value: string): string {
+  if (key !== 'ids') return value;
+  const ids = value
+    .split('-')
+    .map((part) => part.trim())
+    .filter(Boolean);
+  return Array.from(new Set(ids))
+    .sort((left, right) => {
+      const leftNumber = Number(left);
+      const rightNumber = Number(right);
+      if (Number.isFinite(leftNumber) && Number.isFinite(rightNumber) && leftNumber !== rightNumber) {
+        return leftNumber - rightNumber;
+      }
+      return left.localeCompare(right);
+    })
+    .join('-');
+}
+
+function providerRequestKey(endpoint: string, params: Record<string, string>): string {
+  const normalizedParams = Object.entries(params)
+    .map(([key, value]) => [key, normalizeProviderParamForKey(key, value)] as const)
+    .sort(([left], [right]) => left.localeCompare(right));
+  return JSON.stringify([endpoint, normalizedParams]);
+}
+
+export function resetFootballApiInFlightForTests(): void {
+  inFlightApiGets.clear();
+}
 
 async function countOutboundAttempt(): Promise<void> {
   await incrementFootballApiDailyCount();
@@ -127,6 +157,20 @@ function serializeFootballApiErrors(errors: ApiFootballStatusResponse['errors'])
 }
 
 async function apiGet<T>(endpoint: string, params: Record<string, string> = {}): Promise<T[]> {
+  const key = providerRequestKey(endpoint, params);
+  const pending = inFlightApiGets.get(key);
+  if (pending) return pending as Promise<T[]>;
+
+  const request = apiGetUncoalesced<T>(endpoint, params).finally(() => {
+    if (inFlightApiGets.get(key) === request) {
+      inFlightApiGets.delete(key);
+    }
+  });
+  inFlightApiGets.set(key, request as Promise<unknown[]>);
+  return request;
+}
+
+async function apiGetUncoalesced<T>(endpoint: string, params: Record<string, string> = {}): Promise<T[]> {
   if (!config.footballApiKey) throw new Error('FOOTBALL_API_KEY not configured');
 
   await assertFootballApiAvailable();

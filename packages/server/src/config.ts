@@ -106,6 +106,8 @@ export const config = {
   jobCheckMatchAlertsMs: Number(process.env['JOB_CHECK_MATCH_ALERTS_MS'] || 3_000),
   /** Provider fixture cache TTL for watched/alerted matches. Keeps UI realtime without forcing every 3s tick upstream. */
   jobRefreshLiveMatchesRealtimeFixtureMs: Number(process.env['JOB_REFRESH_LIVE_MATCHES_REALTIME_FIXTURE_MS'] || 5_000),
+  /** Provider fixture cache TTL for subscription-only matches when no live board is active. */
+  jobRefreshLiveMatchesBackgroundFixtureMs: Number(process.env['JOB_REFRESH_LIVE_MATCHES_BACKGROUND_FIXTURE_MS'] || 15_000),
   /** Max public live/near-live matches to score-refresh per refresh-live-matches tick. */
   jobRefreshLiveMatchesMaxPublicMatches: Number(process.env['JOB_REFRESH_LIVE_MATCHES_MAX_PUBLIC_MATCHES'] || 20),
   /** Separate cadence for public-only live board refreshes. Watchlist/alert rows still follow jobRefreshLiveMatchesMs. */

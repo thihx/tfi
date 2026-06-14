@@ -1,6 +1,7 @@
 import type { ApiFixture, ApiFixtureStat } from '../lib/football-api.js';
 import { config } from '../config.js';
 import { skipIfFootballApiCircuitOpen } from '../lib/football-api-circuit.js';
+import { getFootballApiQuotaTier, type QuotaTier } from '../lib/football-api-quota.js';
 import { kickoffAtUtcFromFixtureDate } from '../lib/kickoff-time.js';
 import { isPublicLiveBoardActive } from '../lib/live-board-activity.js';
 import { ensureFixtureStatistics, ensureFixturesForMatchIds } from '../lib/provider-insight-cache.js';
@@ -18,8 +19,15 @@ const STAT_CONCURRENCY = 4;
 const DEFAULT_MAX_PUBLIC_MATCHES = 20;
 const DEFAULT_PUBLIC_REFRESH_MS = 15_000;
 const DEFAULT_REALTIME_FIXTURE_TTL_MS = 5_000;
+const DEFAULT_BACKGROUND_FIXTURE_TTL_MS = 15_000;
 const FORCE_TERMINAL_REFRESH_FROM_MINUTE = 88;
 const FORCE_TERMINAL_REFRESH_STATUSES = new Set(['2H', 'ET', 'P', 'LIVE']);
+const REALTIME_FIXTURE_TTL_FLOOR_BY_QUOTA_TIER: Record<QuotaTier, number> = {
+  normal: 0,
+  elevated: 10_000,
+  high: 15_000,
+  critical: 30_000,
+};
 
 let lastPublicRefreshAt = 0;
 
@@ -71,10 +79,31 @@ function publicRefreshIntervalMs(): number {
   return Math.max(0, Math.floor(configured));
 }
 
-function realtimeFixtureTtlMs(): number {
+function foregroundRealtimeFixtureTtlMs(): number {
   const configured = Number(config.jobRefreshLiveMatchesRealtimeFixtureMs);
-  if (!Number.isFinite(configured)) return DEFAULT_REALTIME_FIXTURE_TTL_MS;
-  return Math.max(0, Math.floor(configured));
+  return Number.isFinite(configured)
+    ? Math.max(0, Math.floor(configured))
+    : DEFAULT_REALTIME_FIXTURE_TTL_MS;
+}
+
+function backgroundFixtureTtlMs(): number {
+  const configured = Number(config.jobRefreshLiveMatchesBackgroundFixtureMs);
+  return Number.isFinite(configured)
+    ? Math.max(0, Math.floor(configured))
+    : DEFAULT_BACKGROUND_FIXTURE_TTL_MS;
+}
+
+async function realtimeFixtureTtlMs(options: { foreground: boolean }): Promise<number> {
+  const foregroundTtl = foregroundRealtimeFixtureTtlMs();
+  const base = options.foreground
+    ? foregroundTtl
+    : Math.max(foregroundTtl, backgroundFixtureTtlMs());
+  try {
+    const tier = await getFootballApiQuotaTier();
+    return Math.max(base, REALTIME_FIXTURE_TTL_FLOOR_BY_QUOTA_TIER[tier] ?? 0);
+  } catch {
+    return base;
+  }
 }
 
 function isPublicRefreshDue(now: number): boolean {
@@ -174,10 +203,13 @@ export async function refreshLiveMatchesJob(): Promise<{
     ...watchedMatchIds,
     ...alertMatchIds.map(String),
   ]);
+  const alertMatchIdSet = new Set(alertMatchIds.map(String));
   const now = Date.now();
   const maxPublicMatches = publicRefreshLimit();
   const publicRefreshDue = maxPublicMatches > 0 && isPublicRefreshDue(now);
-  const publicBoardActive = publicRefreshDue ? await isPublicLiveBoardActive() : false;
+  const publicBoardActive = publicRefreshDue || watchedMatchIds.size > 0
+    ? await isPublicLiveBoardActive()
+    : false;
   const includePublicCandidates = publicRefreshDue && publicBoardActive;
   if (realtimeInterestMatchIds.size === 0 && maxPublicMatches <= 0) {
     return {
@@ -238,19 +270,44 @@ export async function refreshLiveMatchesJob(): Promise<{
   }
 
   const fixtureIds = tracked.map((row) => row.match_id);
-  const realtimeTracked = tracked.filter((row) => realtimeInterestMatchIds.has(String(row.match_id)));
+  const foregroundRealtimeTracked = tracked.filter((row) => {
+    const matchId = String(row.match_id);
+    return realtimeInterestMatchIds.has(matchId)
+      && (alertMatchIdSet.has(matchId) || publicBoardActive);
+  });
+  const backgroundRealtimeTracked = tracked.filter((row) => {
+    const matchId = String(row.match_id);
+    return realtimeInterestMatchIds.has(matchId)
+      && !alertMatchIdSet.has(matchId)
+      && !publicBoardActive;
+  });
   const publicTracked = tracked.filter((row) => !realtimeInterestMatchIds.has(String(row.match_id)));
   const liveCount = tracked.filter((row) => LIVE_STATUSES.has(String(row.status || '').trim().toUpperCase())).length;
 
   await reportJobProgress(JOB, 'fixtures', `Refreshing ${fixtureIds.length} tracked fixtures...`, 35);
   // Keep scheduler/UI cadence fast while avoiding a provider request on every
   // 3s tick. Watched/alerted rows get a short TTL; public rows use normal cache TTL.
-  const [realtimeFixtures, publicFixtures] = await Promise.all([
-    realtimeTracked.length > 0
-      ? ensureFixturesForMatchIds(realtimeTracked.map((row) => String(row.match_id)), {
+  const [foregroundRealtimeTtlMs, backgroundRealtimeTtlMs] = await Promise.all([
+    foregroundRealtimeTracked.length > 0
+      ? realtimeFixtureTtlMs({ foreground: true })
+      : Promise.resolve(DEFAULT_REALTIME_FIXTURE_TTL_MS),
+    backgroundRealtimeTracked.length > 0
+      ? realtimeFixtureTtlMs({ foreground: false })
+      : Promise.resolve(DEFAULT_BACKGROUND_FIXTURE_TTL_MS),
+  ]);
+  const [foregroundRealtimeFixtures, backgroundRealtimeFixtures, publicFixtures] = await Promise.all([
+    foregroundRealtimeTracked.length > 0
+      ? ensureFixturesForMatchIds(foregroundRealtimeTracked.map((row) => String(row.match_id)), {
         freshnessMode: 'stale_safe',
-        fixtureTtlMs: realtimeFixtureTtlMs(),
-        forceRefreshIds: forceRefreshIdsFor(realtimeTracked),
+        fixtureTtlMs: foregroundRealtimeTtlMs,
+        forceRefreshIds: forceRefreshIdsFor(foregroundRealtimeTracked),
+      })
+      : Promise.resolve([]),
+    backgroundRealtimeTracked.length > 0
+      ? ensureFixturesForMatchIds(backgroundRealtimeTracked.map((row) => String(row.match_id)), {
+        freshnessMode: 'stale_safe',
+        fixtureTtlMs: backgroundRealtimeTtlMs,
+        forceRefreshIds: forceRefreshIdsFor(backgroundRealtimeTracked),
       })
       : Promise.resolve([]),
     publicTracked.length > 0
@@ -261,7 +318,7 @@ export async function refreshLiveMatchesJob(): Promise<{
       : Promise.resolve([]),
   ]);
   const fixturesById = new Map<string, ApiFixture>();
-  for (const fixture of realtimeFixtures.concat(publicFixtures)) {
+  for (const fixture of foregroundRealtimeFixtures.concat(backgroundRealtimeFixtures, publicFixtures)) {
     fixturesById.set(String(fixture.fixture.id), fixture);
   }
   const fixtures = [...fixturesById.values()];

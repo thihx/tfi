@@ -46,6 +46,8 @@ describe('football-api apiGet', () => {
     mockOpenFootballApiCircuitUntilNextUtcMidnight.mockResolvedValue('2026-05-24T00:00:00.000Z');
     const { resetFootballApiCircuitForTests } = await import('../lib/football-api-circuit.js');
     resetFootballApiCircuitForTests();
+    const { resetFootballApiInFlightForTests } = await import('../lib/football-api.js');
+    resetFootballApiInFlightForTests();
   });
 
   afterEach(() => {
@@ -99,6 +101,51 @@ describe('football-api apiGet', () => {
     await vi.advanceTimersByTimeAsync(1000);
     await expect(promise).resolves.toEqual([{ fixture: { id: 1 } }]);
     expect(global.fetch).toHaveBeenCalledTimes(2);
+  });
+
+  test('coalesces concurrent equivalent provider requests', async () => {
+    let resolveFetch: (value: unknown) => void = () => {};
+    const fetchPromise = new Promise((resolve) => {
+      resolveFetch = resolve;
+    });
+    global.fetch = vi.fn(() => fetchPromise) as unknown as typeof fetch;
+
+    const { fetchFixturesByIds } = await import('../lib/football-api.js');
+    const first = fetchFixturesByIds(['2', '1']);
+    const second = fetchFixturesByIds(['1', '2']);
+
+    await vi.waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
+
+    resolveFetch({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        errors: {},
+        results: 2,
+        response: [{ fixture: { id: 1 } }, { fixture: { id: 2 } }],
+      }),
+    });
+
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      [{ fixture: { id: 1 } }, { fixture: { id: 2 } }],
+      [{ fixture: { id: 1 } }, { fixture: { id: 2 } }],
+    ]);
+    expect(mockRecordApiFootballRequestSafe).toHaveBeenCalledTimes(1);
+  });
+
+  test('does not reuse coalesced provider requests after they settle', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ errors: {}, results: 1, response: [{ fixture: { id: 1 } }] }),
+    });
+
+    const { fetchFixturesByIds } = await import('../lib/football-api.js');
+    await expect(fetchFixturesByIds(['1'])).resolves.toEqual([{ fixture: { id: 1 } }]);
+    await expect(fetchFixturesByIds(['1'])).resolves.toEqual([{ fixture: { id: 1 } }]);
+
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+    expect(mockRecordApiFootballRequestSafe).toHaveBeenCalledTimes(2);
   });
 
   test('does not open circuit for healthy status quota metadata', async () => {

@@ -10,11 +10,13 @@ const mockGetAutoPipelineOperationalWatchlist = vi.fn();
 const mockGetRealtimeAlertMatchIds = vi.fn();
 const mockIsPublicLiveBoardActive = vi.fn();
 const mockArchiveFinishedMatches = vi.fn();
+const mockGetFootballApiQuotaTier = vi.fn().mockResolvedValue('normal');
 const mockConfig = vi.hoisted(() => ({
   timezone: 'Asia/Seoul',
   jobRefreshLiveMatchesMaxPublicMatches: 0,
   jobRefreshLiveMatchesPublicMs: 15_000,
   jobRefreshLiveMatchesRealtimeFixtureMs: 5_000,
+  jobRefreshLiveMatchesBackgroundFixtureMs: 15_000,
 }));
 
 vi.mock('../jobs/job-progress.js', () => ({
@@ -54,6 +56,10 @@ vi.mock('../lib/football-api-circuit.js', () => ({
   skipIfFootballApiCircuitOpen: (...args: unknown[]) => mockSkipIfFootballApiCircuitOpen(...args),
 }));
 
+vi.mock('../lib/football-api-quota.js', () => ({
+  getFootballApiQuotaTier: (...args: unknown[]) => mockGetFootballApiQuotaTier(...args),
+}));
+
 vi.mock('../config.js', () => ({
   config: mockConfig,
 }));
@@ -76,9 +82,11 @@ beforeEach(() => {
   mockGetAutoPipelineOperationalWatchlist.mockResolvedValue([{ match_id: '100' }, { match_id: '200' }]);
   mockGetRealtimeAlertMatchIds.mockResolvedValue([]);
   mockIsPublicLiveBoardActive.mockResolvedValue(false);
+  mockGetFootballApiQuotaTier.mockResolvedValue('normal');
   mockConfig.jobRefreshLiveMatchesMaxPublicMatches = 0;
   mockConfig.jobRefreshLiveMatchesPublicMs = 15_000;
   mockConfig.jobRefreshLiveMatchesRealtimeFixtureMs = 5_000;
+  mockConfig.jobRefreshLiveMatchesBackgroundFixtureMs = 15_000;
   resetRefreshLiveMatchesPublicThrottleForTest();
 });
 
@@ -231,7 +239,7 @@ describe('refreshLiveMatchesJob', () => {
     expect(result).toEqual({ tracked: 2, refreshed: 2, live: 1, statsRefreshed: 1 });
     expect(mockEnsureFixturesForMatchIds).toHaveBeenCalledWith(['100', '200'], {
       freshnessMode: 'stale_safe',
-      fixtureTtlMs: 5000,
+      fixtureTtlMs: 15_000,
       forceRefreshIds: ['200'],
     });
     expect(mockEnsureFixtureStatistics).toHaveBeenCalledTimes(1);
@@ -255,6 +263,74 @@ describe('refreshLiveMatchesJob', () => {
         status: 'NS',
       }),
     ]);
+  });
+
+  test('keeps watched matches on fast provider TTL while the Matches board is active', async () => {
+    vi.setSystemTime(new Date('2026-03-26T10:05:00.000Z'));
+    mockIsPublicLiveBoardActive.mockResolvedValueOnce(true);
+    mockGetLiveRefreshCandidates.mockResolvedValue([
+      {
+        match_id: '100',
+        status: '1H',
+        date: '2026-03-26',
+        kickoff: '19:00',
+        kickoff_at_utc: '2026-03-26T10:00:00.000Z',
+      },
+    ]);
+    mockEnsureFixturesForMatchIds.mockResolvedValue([
+      {
+        fixture: {
+          id: 100,
+          date: '2026-03-26T10:00:00+00:00',
+          status: { short: '1H', elapsed: 7 },
+        },
+        goals: { home: 1, away: 0 },
+      },
+    ]);
+    mockUpdateMatches.mockResolvedValue(1);
+
+    const result = await refreshLiveMatchesJob();
+
+    expect(result).toEqual({ tracked: 1, refreshed: 1, live: 1, statsRefreshed: 0 });
+    expect(mockEnsureFixturesForMatchIds).toHaveBeenCalledWith(['100'], {
+      freshnessMode: 'stale_safe',
+      fixtureTtlMs: 5_000,
+      forceRefreshIds: [],
+    });
+  });
+
+  test('widens realtime provider TTL when Football API quota is high', async () => {
+    vi.setSystemTime(new Date('2026-03-26T10:05:00.000Z'));
+    mockGetFootballApiQuotaTier.mockResolvedValueOnce('high');
+    mockGetLiveRefreshCandidates.mockResolvedValue([
+      {
+        match_id: '100',
+        status: '1H',
+        date: '2026-03-26',
+        kickoff: '19:00',
+        kickoff_at_utc: '2026-03-26T10:00:00.000Z',
+      },
+    ]);
+    mockEnsureFixturesForMatchIds.mockResolvedValue([
+      {
+        fixture: {
+          id: 100,
+          date: '2026-03-26T10:00:00+00:00',
+          status: { short: '1H', elapsed: 7 },
+        },
+        goals: { home: 1, away: 0 },
+      },
+    ]);
+    mockUpdateMatches.mockResolvedValue(1);
+
+    const result = await refreshLiveMatchesJob();
+
+    expect(result).toEqual({ tracked: 1, refreshed: 1, live: 1, statsRefreshed: 0 });
+    expect(mockEnsureFixturesForMatchIds).toHaveBeenCalledWith(['100'], {
+      freshnessMode: 'stale_safe',
+      fixtureTtlMs: 15_000,
+      forceRefreshIds: [],
+    });
   });
 
   test('reuses fresh cached stats without calling Football API again', async () => {
@@ -458,7 +534,7 @@ describe('refreshLiveMatchesJob', () => {
     expect(result).toEqual({ tracked: 1, refreshed: 1, live: 0, statsRefreshed: 0 });
     expect(mockEnsureFixturesForMatchIds).toHaveBeenCalledWith(['100'], {
       freshnessMode: 'stale_safe',
-      fixtureTtlMs: 5000,
+      fixtureTtlMs: 15_000,
       forceRefreshIds: ['100'],
     });
   });
@@ -651,7 +727,7 @@ describe('refreshLiveMatchesJob', () => {
 
     expect(mockEnsureFixturesForMatchIds).toHaveBeenCalledWith(['200'], {
       freshnessMode: 'stale_safe',
-      fixtureTtlMs: 5000,
+      fixtureTtlMs: 15_000,
       forceRefreshIds: ['200'],
     });
     expect(mockEnsureFixtureStatistics).not.toHaveBeenCalled();

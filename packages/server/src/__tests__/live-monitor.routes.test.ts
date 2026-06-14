@@ -612,15 +612,20 @@ describe('POST /api/live-monitor/check-live/trigger', () => {
 
 describe('POST /api/live-monitor/matches/:matchId/analyze', () => {
   test('returns manual analysis result from the server pipeline', async () => {
-    mockRunManualAnalysisForMatch.mockResolvedValueOnce({
-      matchId: '123',
-      success: true,
-      decisionKind: 'ai_push',
-      shouldPush: true,
-      selection: 'BTTS Yes',
-      confidence: 8,
-      saved: true,
-      notified: true,
+    const context = await import('../lib/football-api-request-context.js');
+    let seenContext: unknown = null;
+    mockRunManualAnalysisForMatch.mockImplementationOnce(() => {
+      seenContext = context.getFootballApiRequestContext();
+      return Promise.resolve({
+        matchId: '123',
+        success: true,
+        decisionKind: 'ai_push',
+        shouldPush: true,
+        selection: 'BTTS Yes',
+        confidence: 8,
+        saved: true,
+        notified: true,
+      });
     });
 
     const res = await app.inject({ method: 'POST', url: '/api/live-monitor/matches/123/analyze' });
@@ -643,6 +648,7 @@ describe('POST /api/live-monitor/matches/:matchId/analyze', () => {
       followUpHistory: undefined,
       userQuestion: undefined,
     });
+    expect(seenContext).toMatchObject({ consumer: 'live-monitor-manual-analyze' });
     expect(mockResolveSubscriptionAccess).toHaveBeenCalledWith('user-1');
     expect(mockConsumeManualAiQuota).toHaveBeenCalledWith(expect.anything(), 'user-1', expect.objectContaining({
       route: 'live-monitor-match-analyze',

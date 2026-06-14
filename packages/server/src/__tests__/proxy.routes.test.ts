@@ -106,6 +106,15 @@ afterAll(async () => {
 
 describe('POST /api/proxy/football/live-fixtures — error handling', () => {
   test('returns 502 on football API failure', async () => {
+    const insight = await import('../lib/provider-insight-cache.js');
+    const context = await import('../lib/football-api-request-context.js');
+    let seenContext: unknown = null;
+    vi.mocked(insight.ensureFixturesForMatchIds).mockClear();
+    vi.mocked(insight.ensureFixturesForMatchIds).mockImplementationOnce(async () => {
+      seenContext = context.getFootballApiRequestContext();
+      throw new Error('Football API timeout');
+    });
+
     const res = await app.inject({
       method: 'POST',
       url: '/api/proxy/football/live-fixtures',
@@ -113,6 +122,11 @@ describe('POST /api/proxy/football/live-fixtures — error handling', () => {
     });
     expect(res.statusCode).toBe(502);
     expect(res.json().error).toContain('Football API timeout');
+    expect(insight.ensureFixturesForMatchIds).toHaveBeenCalledWith(['100'], {
+      freshnessMode: 'stale_safe',
+      fixtureTtlMs: 5_000,
+    });
+    expect(seenContext).toMatchObject({ consumer: 'proxy-live-fixtures' });
   });
 });
 
@@ -273,6 +287,18 @@ describe('POST /api/proxy/ai/analyze — error handling', () => {
   });
 
   test('builds prompt on server when only matchId is provided', async () => {
+    const context = await import('../lib/football-api-request-context.js');
+    const pipeline = await import('../lib/server-pipeline.js');
+    let seenContext: unknown = null;
+    vi.mocked(pipeline.runPromptOnlyAnalysisForMatch).mockImplementationOnce(async () => {
+      seenContext = context.getFootballApiRequestContext();
+      return {
+        text: 'AI response here',
+        prompt: 'server prompt',
+        result: { success: true },
+      };
+    });
+
     const res = await app.inject({
       method: 'POST',
       url: '/api/proxy/ai/analyze',
@@ -281,7 +307,6 @@ describe('POST /api/proxy/ai/analyze — error handling', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json().text).toBe('AI response here');
 
-    const pipeline = await import('../lib/server-pipeline.js');
     expect(pipeline.runPromptOnlyAnalysisForMatch).toHaveBeenCalledWith('12345', {
       advisoryOnly: false,
       ensureStrategicContext: true,
@@ -290,6 +315,7 @@ describe('POST /api/proxy/ai/analyze — error handling', () => {
       modelOverride: 'gemini-3.5-flash',
       userQuestion: undefined,
     });
+    expect(seenContext).toMatchObject({ consumer: 'manual-ask-ai' });
 
     const auditLib = await import('../lib/audit.js');
     expect(auditLib.audit).toHaveBeenCalledWith(expect.objectContaining({
