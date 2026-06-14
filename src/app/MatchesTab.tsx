@@ -655,6 +655,7 @@ export function MatchesTab() {
     return countEligibleWatchlistCandidates(matches, normalizedDraft, watchedMatchIds);
   }, [favoriteDraftIds, matches, watchlist]);
 
+  const favoriteSaveDisabled = savingFavoriteLeagues || (favoriteDraftUnchanged && favoriteWatchlistPreview.newMatches === 0);
   const favoriteFeatureVisible = favoriteLeaguesEnabled && favoriteLeagueChoices.length > 0;
 
   const favoriteLeagueIdSet = useMemo(
@@ -1763,8 +1764,8 @@ export function MatchesTab() {
             <button
               className="btn btn-primary"
               onClick={saveFavoriteLeagues}
-              disabled={savingFavoriteLeagues || favoriteDraftUnchanged}
-              title={favoriteDraftUnchanged ? 'No changes to save' : undefined}
+              disabled={favoriteSaveDisabled}
+              title={favoriteSaveDisabled && favoriteDraftUnchanged ? 'No changes to save' : undefined}
             >
               {savingFavoriteLeagues ? 'Saving…' : 'Save'}
             </button>

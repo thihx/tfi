@@ -813,6 +813,37 @@ describe('MatchesTab', () => {
     expect(mockLoadAllData).toHaveBeenCalledTimes(2);
   });
 
+  it('allows saving unchanged favorite leagues when new matches can still be added', async () => {
+    const user = userEvent.setup();
+    mockFetchFavoriteLeagueSelection.mockResolvedValueOnce({
+      availableLeagues: leagues.filter((league) => league.top_league),
+      selectedLeagueIds: [140],
+      favoriteLeaguesEnabled: true,
+      favoriteLeagueLimit: 1,
+      watchlistActiveLimit: 5,
+      watchlistActiveCount: 1,
+    });
+    const { container } = render(<MatchesTab />);
+
+    await user.click(await screen.findByRole('button', { name: /Watchlist by Favorite Leagues/i }));
+    const modal = await waitFor(() => container.querySelector('.modal-overlay .modal'));
+    expect(modal).toBeTruthy();
+    const modalScope = within(modal as HTMLElement);
+
+    expect(modalScope.getByText(/new match will be added/i)).toBeInTheDocument();
+    const saveButton = modalScope.getByRole('button', { name: 'Save' });
+    expect(saveButton).not.toBeDisabled();
+
+    await user.click(saveButton);
+
+    await waitFor(() => {
+      expect(mockApplyFavoriteLeaguesToWatchlist).toHaveBeenCalledWith(
+        expect.objectContaining({ apiUrl: 'http://localhost:4000' }),
+        [140],
+      );
+    });
+  });
+
   it('allows admin users to choose beyond the member favorite league cap in the UI', async () => {
     const user = userEvent.setup();
     mockFetchCurrentUser.mockResolvedValueOnce({
