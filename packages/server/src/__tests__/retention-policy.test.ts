@@ -15,6 +15,7 @@ describe('resolveHousekeepingRetentionPolicy', () => {
       pipelineRunsKeepDays: 1,
       jobRunHistoryKeepDays: 1,
       recommendationDeliveriesKeepDays: 1,
+      nativePushDeviceKeepDays: 1,
       thesisWatchKeepDays: 1,
       recommendationsSlimDays: 30,
       aiPerformanceKeepDays: 30,
@@ -32,6 +33,7 @@ describe('resolveHousekeepingRetentionPolicy', () => {
       pipelineRuns: 3,
       jobRunHistory: 3,
       recommendationDeliveries: 7,
+      nativePushDevices: 30,
       thesisWatch: 7,
       recommendationsSlim: 180,
       aiPerformance: 180,
@@ -52,13 +54,16 @@ describe('resolveHousekeepingRetentionPolicy', () => {
       pipelineRunsKeepDays: 7,
       jobRunHistoryKeepDays: 7,
       recommendationDeliveriesKeepDays: 0,
+      nativePushDeviceKeepDays: 180,
       thesisWatchKeepDays: 30,
       recommendationsSlimDays: 365,
       aiPerformanceKeepDays: 365,
     });
 
     expect(policy.keepDays.recommendationDeliveries).toBe(0);
+    expect(policy.keepDays.nativePushDevices).toBe(180);
     expect(policy.protectedTables).toContain('league_profiles');
     expect(policy.rules.find((rule) => rule.key === 'providerCache')?.tableNames).toContain('provider_fixture_cache');
+    expect(policy.rules.find((rule) => rule.key === 'nativePushDevices')?.tableNames).toContain('native_push_devices');
   });
 });

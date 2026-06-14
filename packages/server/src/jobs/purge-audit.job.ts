@@ -21,6 +21,7 @@ import * as recommendationsRepo from '../repos/recommendations.repo.js';
 import * as aiPerfRepo from '../repos/ai-performance.repo.js';
 import * as recommendationDeliveriesRepo from '../repos/recommendation-deliveries.repo.js';
 import * as thesisWatchRepo from '../repos/thesis-watch.repo.js';
+import * as nativePushDevicesRepo from '../repos/native-push-devices.repo.js';
 import {
   resolveHousekeepingRetentionPolicy,
   type HousekeepingRetentionPolicy,
@@ -39,6 +40,7 @@ export interface HousekeepingResult {
   pipelineRunsDeleted: number;
   jobRunHistoryDeleted: number;
   recommendationDeliveriesDeleted: number;
+  nativePushDevicesDeleted: number;
   thesisWatchesExpired: number;
   thesisWatchesDeleted: number;
   recommendationsSlimmed: number;
@@ -63,6 +65,7 @@ export interface HousekeepingResult {
     pipelineRuns: number;
     jobRunHistory: number;
     recommendationDeliveries: number;
+    nativePushDevices: number;
     thesisWatch: number;
     recommendationsSlim: number;
     aiPerformance: number;
@@ -125,6 +128,7 @@ async function buildHousekeepingPreview(policy: HousekeepingRetentionPolicy): Pr
     { label: 'Provider Fixture Lineups Cache', tableName: 'provider_fixture_lineups_cache', timestampColumn: 'cached_at', key: 'providerCache' as const, retentionClass: 'support_cache', strategy: 'delete' },
     { label: 'Provider League Standings Cache', tableName: 'provider_league_standings_cache', timestampColumn: 'cached_at', key: 'providerCache' as const, retentionClass: 'support_cache', strategy: 'delete' },
     { label: 'Recommendation Deliveries', tableName: 'user_recommendation_deliveries', timestampColumn: 'created_at', key: 'recommendationDeliveries' as const, retentionClass: 'delivery_trace', strategy: 'delete' },
+    { label: 'Native Push Devices', tableName: 'native_push_devices', timestampColumn: 'COALESCE(last_seen_at, updated_at, created_at)', key: 'nativePushDevices' as const, retentionClass: 'device_token', strategy: 'delete' },
     { label: 'Thesis Watch', tableName: 'match_thesis_watch', timestampColumn: 'updated_at', key: 'thesisWatch' as const, retentionClass: 'thesis_watch', strategy: 'expire_then_delete' },
   ] as const;
 
@@ -222,6 +226,7 @@ export async function housekeepingJob(): Promise<HousekeepingResult> {
     pipelineRunsDeleted,
     jobRunHistoryDeleted,
     recommendationDeliveriesDeleted,
+    nativePushDevicesDeleted,
     thesisWatchesExpired,
     thesisWatchesDeleted,
   ] = await Promise.all([
@@ -252,6 +257,7 @@ export async function housekeepingJob(): Promise<HousekeepingResult> {
         0,
       )
       : Promise.resolve(0),
+    runStep('native-push-devices', () => nativePushDevicesRepo.purgeStaleNativePushDevices(keepDays.nativePushDevices), 0),
     runStep('thesis-watch-expire', () => thesisWatchRepo.expireDueThesisWatches(), 0),
     runStep('thesis-watch-purge', () => thesisWatchRepo.purgeOldThesisWatches(keepDays.thesisWatch), 0),
   ]);
@@ -281,6 +287,7 @@ export async function housekeepingJob(): Promise<HousekeepingResult> {
     + pipelineRunsDeleted
     + jobRunHistoryDeleted
     + recommendationDeliveriesDeleted
+    + nativePushDevicesDeleted
     + thesisWatchesDeleted
     + aiPerfDeleted;
 
@@ -289,7 +296,7 @@ export async function housekeepingJob(): Promise<HousekeepingResult> {
       `[housekeepingJob] deleted=${totalDeleted} slimmed=${recommendationsSlimmed} ` +
       `(audit=${auditDeleted}, history=${matchesHistoryDeleted}, providerStats=${providerStatsDeleted}, ` +
       `providerOdds=${providerOddsDeleted}, providerCache=${providerCacheDeleted}, snapshots=${matchSnapshotsDeleted}, oddsMovements=${oddsMovementsDeleted}, ` +
-      `promptShadow=${promptShadowDeleted}, pipelineRuns=${pipelineRunsDeleted}, jobRuns=${jobRunHistoryDeleted}, deliveries=${recommendationDeliveriesDeleted}, ` +
+      `promptShadow=${promptShadowDeleted}, pipelineRuns=${pipelineRunsDeleted}, jobRuns=${jobRunHistoryDeleted}, deliveries=${recommendationDeliveriesDeleted}, nativePushDevices=${nativePushDevicesDeleted}, ` +
       `thesisWatchExpired=${thesisWatchesExpired}, thesisWatchDeleted=${thesisWatchesDeleted}, aiPerf=${aiPerfDeleted} aiPerfAgg=${aiPerfAggregated})`,
     );
 
@@ -307,6 +314,7 @@ export async function housekeepingJob(): Promise<HousekeepingResult> {
       promptShadowDeleted > 250 ? 'prompt_shadow_runs' : null,
       jobRunHistoryDeleted > 250 ? 'job_run_history' : null,
       recommendationDeliveriesDeleted > 250 ? 'user_recommendation_deliveries' : null,
+      nativePushDevicesDeleted > 250 ? 'native_push_devices' : null,
       thesisWatchesDeleted > 250 ? 'match_thesis_watch' : null,
     ].filter((table): table is string => table != null);
 
@@ -343,6 +351,7 @@ export async function housekeepingJob(): Promise<HousekeepingResult> {
     pipelineRunsDeleted,
     jobRunHistoryDeleted,
     recommendationDeliveriesDeleted,
+    nativePushDevicesDeleted,
     thesisWatchesExpired,
     thesisWatchesDeleted,
     recommendationsSlimmed,

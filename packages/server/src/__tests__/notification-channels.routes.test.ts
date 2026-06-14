@@ -31,12 +31,24 @@ vi.mock('../repos/telegram-link-tokens.repo.js', () => ({
   }),
 }));
 
+vi.mock('../repos/notification-phone-verifications.repo.js', () => ({
+  createPhoneVerificationChallenge: vi.fn().mockResolvedValue({
+    code: '123456',
+    expiresAt: '2030-01-01T00:10:00.000Z',
+  }),
+  verifyPhoneVerificationCode: vi.fn().mockResolvedValue(true),
+}));
+
+vi.mock('../lib/twilio.js', () => ({
+  sendSmsNotification: vi.fn().mockResolvedValue({ ok: true }),
+}));
+
 vi.mock('../lib/telegram-bot-username.js', () => ({
   resolveTelegramBotUsername: vi.fn().mockResolvedValue('tfi_test_bot'),
 }));
 
 vi.mock('../repos/notification-channels.repo.js', () => ({
-  SUPPORTED_NOTIFICATION_CHANNELS: ['telegram', 'zalo', 'web_push', 'email'],
+  SUPPORTED_NOTIFICATION_CHANNELS: ['telegram', 'zalo', 'web_push', 'native_push', 'email', 'sms', 'voice_call'],
   getNotificationChannelConfigs: vi.fn().mockResolvedValue([
     {
       channelType: 'telegram',
@@ -63,12 +75,36 @@ vi.mock('../repos/notification-channels.repo.js', () => ({
       metadata: { senderImplemented: true },
     },
     {
+      channelType: 'native_push',
+      enabled: false,
+      status: 'draft',
+      address: null,
+      config: {},
+      metadata: { senderImplemented: true, supportsLocalNotifications: true },
+    },
+    {
       channelType: 'email',
       enabled: false,
       status: 'draft',
       address: null,
       config: {},
       metadata: { senderImplemented: false },
+    },
+    {
+      channelType: 'sms',
+      enabled: false,
+      status: 'draft',
+      address: null,
+      config: {},
+      metadata: { senderImplemented: true },
+    },
+    {
+      channelType: 'voice_call',
+      enabled: false,
+      status: 'draft',
+      address: null,
+      config: {},
+      metadata: { senderImplemented: true },
     },
   ]),
   saveNotificationChannelConfig: vi.fn().mockResolvedValue({
@@ -235,7 +271,7 @@ describe('PUT /api/notification-channels/:channelType', () => {
   test('rejects unsupported channel types', async () => {
     const res = await app.inject({
       method: 'PUT',
-      url: '/api/notification-channels/sms',
+      url: '/api/notification-channels/fax',
       payload: { enabled: true },
     });
 
@@ -266,5 +302,57 @@ describe('PUT /api/notification-channels/:channelType', () => {
 
     expect(res.statusCode).toBe(403);
     expect(res.json()).toEqual({ error: 'Notification channel is not available on your current plan.' });
+  });
+
+  test('rejects direct SMS enable without phone verification flow', async () => {
+    const repo = await import('../repos/notification-channels.repo.js');
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/api/me/notification-channels/sms',
+      payload: { enabled: true, address: '+15551234567' },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toEqual({
+      error: 'SMS and voice call channels must be enabled through phone verification',
+      code: 'PHONE_VERIFICATION_REQUIRED',
+    });
+    expect(repo.saveNotificationChannelConfig).not.toHaveBeenCalled();
+  });
+
+  test('starts SMS phone verification by sending a code', async () => {
+    const phoneRepo = await import('../repos/notification-phone-verifications.repo.js');
+    const twilio = await import('../lib/twilio.js');
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/me/notification-channels/sms/phone-verification/start',
+      payload: { address: '+15551234567' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ sent: true, expiresAt: '2030-01-01T00:10:00.000Z' });
+    expect(phoneRepo.createPhoneVerificationChallenge).toHaveBeenCalledWith('user-1', 'sms', '+15551234567');
+    expect(twilio.sendSmsNotification).toHaveBeenCalledWith('+15551234567', expect.stringContaining('123456'));
+  });
+
+  test('verifies SMS phone and enables the channel', async () => {
+    const phoneRepo = await import('../repos/notification-phone-verifications.repo.js');
+    const repo = await import('../repos/notification-channels.repo.js');
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/me/notification-channels/sms/phone-verification/verify',
+      payload: { address: '+15551234567', code: '123456' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(phoneRepo.verifyPhoneVerificationCode).toHaveBeenCalledWith('user-1', 'sms', '+15551234567', '123456');
+    expect(repo.saveNotificationChannelConfig).toHaveBeenCalledWith('user-1', 'sms', expect.objectContaining({
+      enabled: true,
+      address: '+15551234567',
+      status: 'verified',
+      metadata: expect.objectContaining({
+        phoneVerificationStatus: 'verified',
+      }),
+    }));
   });
 });

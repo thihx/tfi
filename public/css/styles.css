@@ -6026,21 +6026,13 @@ table tbody#watchlist-table td:not(.select-col) {
     gap: 2px;
 }
 
-.match-cell__layout {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    width: 100%;
-}
-
-.match-cell__body {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 2px;
-    min-width: 0;
-    flex: 1;
+.matches-table .live-col {
+    width: 1%;
+    white-space: nowrap;
+    text-align: center;
+    vertical-align: middle;
+    padding-left: 6px;
+    padding-right: 6px;
 }
 
 .match-live-stream-controls {
@@ -7843,18 +7835,13 @@ table td:last-child, table th:last-child {
         text-align: left;
     }
 
-    .table-container.table-cards .match-cell__layout {
-        justify-content: flex-start;
-        align-items: center;
-        gap: 8px;
-    }
-
-    .table-container.table-cards .match-cell__body {
-        align-items: flex-start;
+    .table-container.table-cards td.live-col--empty {
+        display: none;
     }
 
     .table-container.table-cards .match-live-stream-controls {
         padding-top: 0;
+        justify-self: end;
     }
 
     .table-container.table-cards .time-status {
@@ -7874,6 +7861,7 @@ table td:last-child, table th:last-child {
     .table-container.table-cards td[data-label="Match"] { order: 1; }
     .table-container.table-cards td[data-label="Time"] { order: 2; }
     .table-container.table-cards td[data-label="League"] { order: 3; }
+    .table-container.table-cards td[data-label="Live"] { order: 4; }
     .table-container.table-cards td[data-label="Mode"] { order: 5; }
     .table-container.table-cards td[data-label="Priority"] { order: 6; }
     .table-container.table-cards td[data-label="Prediction"] { order: 7; }

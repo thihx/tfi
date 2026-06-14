@@ -11,6 +11,12 @@ vi.mock('../config.js', () => ({
     liveStatuses: ['1H', '2H'],
     pipelineEnabled: true,
     providerSamplingEnabled: true,
+    fcmProjectId: 'firebase-project',
+    fcmClientEmail: 'firebase@example.com',
+    fcmPrivateKey: '-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----\n',
+    fcmServiceAccountJson: '',
+    criticalFallbackSmsEstimatedUnitCostUsd: 0.05,
+    criticalFallbackVoiceCallEstimatedUnitCostUsd: 0.25,
   },
 }));
 
@@ -415,6 +421,56 @@ describe('ops-monitoring.repo', () => {
         rows: [{ count: '6' }],
       })
       .mockResolvedValueOnce({
+        rows: [
+          {
+            channel_type: 'native_push',
+            attempts_24h: '5',
+            delivered_24h: '4',
+            failures_24h: '1',
+            suppressed_24h: '0',
+            pending: '0',
+            stale_pending: '0',
+            invalid_token_failures_24h: '1',
+          },
+          {
+            channel_type: 'sms',
+            attempts_24h: '2',
+            delivered_24h: '2',
+            failures_24h: '0',
+            suppressed_24h: '0',
+            pending: '0',
+            stale_pending: '0',
+            invalid_token_failures_24h: '0',
+          },
+          {
+            channel_type: 'voice_call',
+            attempts_24h: '1',
+            delivered_24h: '1',
+            failures_24h: '0',
+            suppressed_24h: '0',
+            pending: '0',
+            stale_pending: '0',
+            invalid_token_failures_24h: '0',
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            platform: 'android',
+            provider: 'fcm',
+            devices: '3',
+            local_notifications_enabled: '2',
+          },
+          {
+            platform: 'ios',
+            provider: 'fcm',
+            devices: '1',
+            local_notifications_enabled: '1',
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
         rows: [{ runs: '4', shadow_rows: '4', shadow_successes: '4' }],
       })
       .mockResolvedValueOnce({
@@ -641,6 +697,25 @@ describe('ops-monitoring.repo', () => {
     expect(snapshot.settlement.recommendationPending).toBe(5);
     expect(snapshot.notifications.failureRate24h).toBe(10);
     expect(snapshot.notifications.stalePending).toBe(0);
+    expect(snapshot.notifications.fcmConfigured).toBe(true);
+    expect(snapshot.notifications.nativeDevicesByPlatform[0]).toEqual({
+      platform: 'android',
+      provider: 'fcm',
+      devices: 3,
+      localNotificationsEnabled: 2,
+    });
+    expect(snapshot.notifications.channelBreakdown.find((row) => row.channelType === 'native_push')).toEqual({
+      channelType: 'native_push',
+      attempts24h: 5,
+      delivered24h: 4,
+      failures24h: 1,
+      suppressed24h: 0,
+      pending: 0,
+      stalePending: 0,
+      invalidTokenFailures24h: 1,
+      failureRate24h: 20,
+    });
+    expect(snapshot.notifications.criticalFallbackCostEstimateUsd24h).toBe(0.35);
     expect(snapshot.promptShadow.shouldPushAgreementRate24h).toBe(100);
     expect(snapshot.promptShadow.marketAgreementRate24h).toBe(75);
     expect(snapshot.promptQuality.sameThesisClusters).toBe(1);
@@ -683,6 +758,7 @@ describe('ops-monitoring.repo', () => {
     expect(snapshot.cards.find((card) => card.label === 'Actionable Funnel 24h')?.value).toBe('11.1%');
     expect(snapshot.cards.find((card) => card.label === 'Prompt Agree 24h')?.value).toBe('100%');
     expect(snapshot.cards.find((card) => card.label === 'Stacking Rate 24h')?.value).toBe('66.7%');
+    expect(snapshot.cards.find((card) => card.label === 'Critical Fallback Cost 24h')?.value).toBe('$0.3500');
     expect(snapshot.checklist.some((item) => item.id === 'settlement-backlog')).toBe(true);
   });
 });

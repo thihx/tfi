@@ -7,6 +7,7 @@ import {
   type PromptQualitySummary,
 } from '../lib/recommendation-quality-metrics.js';
 import { config } from '../config.js';
+import { isFcmConfigured } from '../lib/native-push.js';
 
 export type OpsChecklistStatus = 'pass' | 'warn' | 'fail' | 'unknown';
 
@@ -150,6 +151,25 @@ export interface NotificationOverview {
   failureRate24h: number;
   stalePending: number;
   deliveredRecommendations24h: number;
+  fcmConfigured: boolean;
+  nativeDevicesByPlatform: Array<{
+    platform: string;
+    provider: string;
+    devices: number;
+    localNotificationsEnabled: number;
+  }>;
+  channelBreakdown: Array<{
+    channelType: string;
+    attempts24h: number;
+    delivered24h: number;
+    failures24h: number;
+    suppressed24h: number;
+    pending: number;
+    stalePending: number;
+    invalidTokenFailures24h: number;
+    failureRate24h: number;
+  }>;
+  criticalFallbackCostEstimateUsd24h: number;
 }
 
 export interface PromptShadowVersionBreakdown {
@@ -583,6 +603,8 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
     unresolvedMarketRes,
     notificationRes,
     deliveredRes,
+    notificationChannelBreakdownRes,
+    nativeDevicePlatformRes,
     promptShadowSummaryRes,
     promptShadowComparedRes,
     promptShadowDisagreementsRes,
@@ -887,6 +909,70 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
        FROM recommendations
        WHERE notified = 'yes'
          AND timestamp >= NOW() - INTERVAL '${NOTIFICATION_WINDOW_HOURS} hours'`,
+    ),
+    query<{
+      channel_type: string;
+      attempts_24h: string;
+      delivered_24h: string;
+      failures_24h: string;
+      suppressed_24h: string;
+      pending: string;
+      stale_pending: string;
+      invalid_token_failures_24h: string;
+    }>(
+      `WITH delivery_channels AS (
+         SELECT channel_type, status, attempt_count, last_error, last_attempt_at, delivered_at, updated_at, created_at
+           FROM user_recommendation_delivery_channels
+         UNION ALL
+         SELECT channel_type, status, attempt_count, last_error, last_attempt_at, delivered_at, updated_at, created_at
+           FROM user_match_alert_delivery_channels
+       )
+       SELECT
+         channel_type,
+         COUNT(*) FILTER (
+           WHERE attempt_count > 0
+             AND last_attempt_at >= NOW() - INTERVAL '${NOTIFICATION_WINDOW_HOURS} hours'
+         )::text AS attempts_24h,
+         COUNT(*) FILTER (
+           WHERE status = 'delivered'
+             AND delivered_at >= NOW() - INTERVAL '${NOTIFICATION_WINDOW_HOURS} hours'
+         )::text AS delivered_24h,
+         COUNT(*) FILTER (
+           WHERE status = 'failed'
+             AND updated_at >= NOW() - INTERVAL '${NOTIFICATION_WINDOW_HOURS} hours'
+         )::text AS failures_24h,
+         COUNT(*) FILTER (
+           WHERE status = 'suppressed'
+             AND updated_at >= NOW() - INTERVAL '${NOTIFICATION_WINDOW_HOURS} hours'
+         )::text AS suppressed_24h,
+         COUNT(*) FILTER (WHERE status = 'pending')::text AS pending,
+         COUNT(*) FILTER (
+           WHERE status = 'pending'
+             AND created_at < NOW() - INTERVAL '${NOTIFICATION_STALE_PENDING_MINUTES} minutes'
+         )::text AS stale_pending,
+         COUNT(*) FILTER (
+           WHERE status = 'failed'
+             AND updated_at >= NOW() - INTERVAL '${NOTIFICATION_WINDOW_HOURS} hours'
+             AND COALESCE(last_error, '') ~* '(UNREGISTERED|INVALID_ARGUMENT|invalid token)'
+         )::text AS invalid_token_failures_24h
+       FROM delivery_channels
+       GROUP BY channel_type
+       ORDER BY channel_type`,
+    ),
+    query<{
+      platform: string;
+      provider: string;
+      devices: string;
+      local_notifications_enabled: string;
+    }>(
+      `SELECT
+         platform,
+         provider,
+         COUNT(*)::text AS devices,
+         COUNT(*) FILTER (WHERE local_notifications_enabled = TRUE)::text AS local_notifications_enabled
+       FROM native_push_devices
+       GROUP BY platform, provider
+       ORDER BY platform, provider`,
     ),
     query<{ runs: string; shadow_rows: string; shadow_successes: string }>(
       `SELECT
@@ -1296,6 +1382,33 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
   const notificationFailures24h = Number(notificationSummary.failures);
   const notificationStalePending = Number(notificationSummary.stale_pending);
   const notificationFailureRate24h = pct(notificationFailures24h, notificationAttempts24h);
+  const notificationChannelBreakdown = notificationChannelBreakdownRes.rows.map((row) => {
+    const attempts24h = Number(row.attempts_24h);
+    const failures24h = Number(row.failures_24h);
+    return {
+      channelType: row.channel_type,
+      attempts24h,
+      delivered24h: Number(row.delivered_24h),
+      failures24h,
+      suppressed24h: Number(row.suppressed_24h),
+      pending: Number(row.pending),
+      stalePending: Number(row.stale_pending),
+      invalidTokenFailures24h: Number(row.invalid_token_failures_24h),
+      failureRate24h: pct(failures24h, attempts24h),
+    };
+  });
+  const criticalFallbackCostEstimateUsd24h = round(
+    notificationChannelBreakdown.reduce((sum, row) => {
+      if (row.channelType === 'sms') {
+        return sum + row.delivered24h * Number(config.criticalFallbackSmsEstimatedUnitCostUsd ?? 0);
+      }
+      if (row.channelType === 'voice_call') {
+        return sum + row.delivered24h * Number(config.criticalFallbackVoiceCallEstimatedUnitCostUsd ?? 0);
+      }
+      return sum;
+    }, 0),
+    4,
+  );
   const promptShadowRuns24h = Number(promptShadowSummary.runs);
   const promptShadowRows24h = Number(promptShadowSummary.shadow_rows);
   const promptShadowSuccessRate24h = pct(Number(promptShadowSummary.shadow_successes), promptShadowRows24h);
@@ -1448,6 +1561,12 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
       value: notificationAttempts24h > 0 ? `${notificationFailureRate24h}%` : 'n/a',
       tone: checklist.find((item) => item.id === 'notification-health')?.status ?? 'neutral',
       detail: `${notificationFailures24h}/${notificationAttempts24h} attempts`,
+    },
+    {
+      label: 'Critical Fallback Cost 24h',
+      value: `$${criticalFallbackCostEstimateUsd24h.toFixed(4)}`,
+      tone: criticalFallbackCostEstimateUsd24h > 0 ? 'warn' : 'neutral',
+      detail: 'SMS/voice estimated delivered cost',
     },
     {
       label: 'Prompt Agree 24h',
@@ -1682,6 +1801,15 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
       failureRate24h: notificationFailureRate24h,
       stalePending: notificationStalePending,
       deliveredRecommendations24h: Number(deliveredSummary.count),
+      fcmConfigured: isFcmConfigured(),
+      nativeDevicesByPlatform: nativeDevicePlatformRes.rows.map((row) => ({
+        platform: row.platform,
+        provider: row.provider,
+        devices: Number(row.devices),
+        localNotificationsEnabled: Number(row.local_notifications_enabled),
+      })),
+      channelBreakdown: notificationChannelBreakdown,
+      criticalFallbackCostEstimateUsd24h,
     },
     promptShadow: {
       windowHours: PROMPT_SHADOW_WINDOW_HOURS,

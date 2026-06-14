@@ -17,6 +17,7 @@ import { fetchMonitorConfig, persistMonitorConfig } from '@/features/live-monito
 import { useToast } from '@/hooks/useToast';
 import { fetchNotificationChannels } from '@/lib/services/notification-channels';
 import { TelegramDeepLinkConnect } from '@/components/profile/TelegramDeepLinkConnect';
+import { initializeNativeNotificationBridge } from '@/lib/native-notifications';
 import type { NotificationChannelConfig, TabName } from '@/types';
 
 const TAB_NAMES = new Set<TabName>([
@@ -92,6 +93,23 @@ function AppContent() {
   // Initial load — depends only on authed, never re-fires due to loadAllData reference changes
   useEffect(() => {
     if (authed) loadAllDataRef.current();
+  }, [authed]);
+
+  useEffect(() => {
+    if (!authed) return;
+    let disposed = false;
+    let cleanup: (() => void) | undefined;
+    void initializeNativeNotificationBridge().then((dispose) => {
+      if (disposed) {
+        dispose();
+        return;
+      }
+      cleanup = dispose;
+    });
+    return () => {
+      disposed = true;
+      cleanup?.();
+    };
   }, [authed]);
 
   useEffect(() => {
@@ -208,6 +226,18 @@ function AppContent() {
     };
     navigator.serviceWorker?.addEventListener('message', handler);
     return () => navigator.serviceWorker?.removeEventListener('message', handler);
+  }, []);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ matchId?: string; matchDisplay?: string; tab?: string }>).detail;
+      if (!detail?.matchId) return;
+      setActiveTab(parseTabParam(detail.tab ?? null) ?? 'matches');
+      setPushModal({ id: detail.matchId, display: detail.matchDisplay ?? '' });
+      void refreshMatchesRef.current();
+    };
+    window.addEventListener('tfi:nativeNotificationOpen', handler);
+    return () => window.removeEventListener('tfi:nativeNotificationOpen', handler);
   }, []);
 
   // Responsive: switch between sidebar and top-nav layouts

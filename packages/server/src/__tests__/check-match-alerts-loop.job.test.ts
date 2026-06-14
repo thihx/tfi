@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   evaluateMatchAlertRule: vi.fn(),
   adjudicateMatchAlertWithLlm: vi.fn(),
   deliverPendingWebPushMatchAlerts: vi.fn(),
+  deliverPendingNativePushMatchAlerts: vi.fn(),
+  deliverPendingFallbackMatchAlerts: vi.fn(),
   enqueueMatchAlertDelivery: vi.fn(),
   hasRecentMatchAlertDelivery: vi.fn(),
   recordSuppressedMatchAlertDelivery: vi.fn(),
@@ -52,6 +54,8 @@ vi.mock('../lib/match-alert-llm.js', () => ({
 
 vi.mock('../repos/match-alert-deliveries.repo.js', () => ({
   deliverPendingWebPushMatchAlerts: mocks.deliverPendingWebPushMatchAlerts,
+  deliverPendingNativePushMatchAlerts: mocks.deliverPendingNativePushMatchAlerts,
+  deliverPendingFallbackMatchAlerts: mocks.deliverPendingFallbackMatchAlerts,
   enqueueMatchAlertDelivery: mocks.enqueueMatchAlertDelivery,
   hasRecentMatchAlertDelivery: mocks.hasRecentMatchAlertDelivery,
   recordSuppressedMatchAlertDelivery: mocks.recordSuppressedMatchAlertDelivery,
@@ -107,6 +111,8 @@ describe('checkMatchAlertsJob loop protection', () => {
     mocks.buildMatchAlertContext.mockReturnValue(baseContext);
     mocks.evaluateMatchAlertRule.mockReturnValue(baseEvaluation);
     mocks.deliverPendingWebPushMatchAlerts.mockResolvedValue({ delivered: 0, failed: 0 });
+    mocks.deliverPendingNativePushMatchAlerts.mockResolvedValue({ delivered: 0, failed: 0 });
+    mocks.deliverPendingFallbackMatchAlerts.mockResolvedValue({ delivered: 0, failed: 0 });
     mocks.enqueueMatchAlertDelivery.mockResolvedValue({ id: 1 });
     mocks.hasRecentMatchAlertDelivery.mockResolvedValue(false);
     mocks.recordSuppressedMatchAlertDelivery.mockResolvedValue({ id: 2 });

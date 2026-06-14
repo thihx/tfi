@@ -8,6 +8,8 @@ import { evaluateMatchAlertRule, type MatchAlertEvaluationResult } from '../lib/
 import { adjudicateMatchAlertWithLlm } from '../lib/match-alert-llm.js';
 import {
   deliverPendingWebPushMatchAlerts,
+  deliverPendingNativePushMatchAlerts,
+  deliverPendingFallbackMatchAlerts,
   enqueueMatchAlertDelivery,
   hasRecentMatchAlertDelivery,
   recordSuppressedMatchAlertDelivery,
@@ -34,12 +36,23 @@ export async function checkMatchAlertsJob(): Promise<{
   enqueued: number;
   webPushDelivered: number;
   webPushFailed: number;
+  nativePushDelivered: number;
+  nativePushFailed: number;
+  smsDelivered: number;
+  smsFailed: number;
+  voiceCallDelivered: number;
+  voiceCallFailed: number;
 }> {
   const JOB = 'check-match-alerts';
   await reportJobProgress(JOB, 'load', 'Loading active match alert rules...', 15);
   const rules = await rulesRepo.getCandidateAlertRules();
   if (rules.length === 0) {
-    const webPush = await deliverPendingWebPushMatchAlerts();
+    const [webPush, nativePush, sms, voiceCall] = await Promise.all([
+      deliverPendingWebPushMatchAlerts(),
+      deliverPendingNativePushMatchAlerts(),
+      deliverPendingFallbackMatchAlerts('sms'),
+      deliverPendingFallbackMatchAlerts('voice_call'),
+    ]);
     return {
       rules: 0,
       matches: 0,
@@ -51,6 +64,12 @@ export async function checkMatchAlertsJob(): Promise<{
       enqueued: 0,
       webPushDelivered: webPush.delivered,
       webPushFailed: webPush.failed,
+      nativePushDelivered: nativePush.delivered,
+      nativePushFailed: nativePush.failed,
+      smsDelivered: sms.delivered,
+      smsFailed: sms.failed,
+      voiceCallDelivered: voiceCall.delivered,
+      voiceCallFailed: voiceCall.failed,
     };
   }
 
@@ -137,8 +156,13 @@ export async function checkMatchAlertsJob(): Promise<{
     if (delivery) enqueued += 1;
   }
 
-  await reportJobProgress(JOB, 'deliver', 'Delivering pending Web Push match alerts...', 85);
-  const webPush = await deliverPendingWebPushMatchAlerts();
+  await reportJobProgress(JOB, 'deliver', 'Delivering pending match alerts...', 85);
+  const [webPush, nativePush, sms, voiceCall] = await Promise.all([
+    deliverPendingWebPushMatchAlerts(),
+    deliverPendingNativePushMatchAlerts(),
+    deliverPendingFallbackMatchAlerts('sms'),
+    deliverPendingFallbackMatchAlerts('voice_call'),
+  ]);
   await reportJobProgress(JOB, 'complete', `Evaluated ${evaluated}, enqueued ${enqueued}`, 100);
   return {
     rules: rules.length,
@@ -151,5 +175,11 @@ export async function checkMatchAlertsJob(): Promise<{
     enqueued,
     webPushDelivered: webPush.delivered,
     webPushFailed: webPush.failed,
+    nativePushDelivered: nativePush.delivered,
+    nativePushFailed: nativePush.failed,
+    smsDelivered: sms.delivered,
+    smsFailed: sms.failed,
+    voiceCallDelivered: voiceCall.delivered,
+    voiceCallFailed: voiceCall.failed,
   };
 }

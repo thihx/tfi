@@ -7,6 +7,8 @@ import { updateCurrentUserProfile } from '@/lib/services/auth';
 import {
   fetchNotificationChannels,
   persistNotificationChannel,
+  startPhoneVerification,
+  verifyPhoneChannel,
   userMessageForNotificationChannelFailure,
 } from '@/lib/services/notification-channels';
 import {
@@ -35,6 +37,7 @@ import {
 } from '@/lib/services/api';
 import type { NotificationChannelConfig, NotificationChannelType } from '@/types';
 import { TelegramDeepLinkConnect } from '@/components/profile/TelegramDeepLinkConnect';
+import { fetchNativePushStatus, sendNativePushTest, type NativePushStatus } from '@/lib/services/native-push';
 
 interface ProfileEditModalProps {
   open: boolean;
@@ -73,6 +76,9 @@ function getChannelDescription(channel: NotificationChannelConfig): string {
   if (channel.channelType === 'telegram') return 'Use “Open Telegram to link” (recommended) or paste your Chat ID.';
   if (channel.channelType === 'email') return 'Email destination for alert delivery.';
   if (channel.channelType === 'zalo') return 'Zalo destination identifier for future delivery support.';
+  if (channel.channelType === 'sms') return 'Critical fallback SMS destination. Use E.164 format, e.g. +15551234567.';
+  if (channel.channelType === 'voice_call') return 'Critical fallback call destination. Use E.164 format, e.g. +15551234567.';
+  if (channel.channelType === 'native_push') return 'Native app device registration and local kickoff alarm status.';
   return 'Browser subscription status for Web Push delivery on this device.';
 }
 
@@ -80,7 +86,16 @@ function getChannelPlaceholder(channelType: NotificationChannelType): string {
   if (channelType === 'telegram') return 'Telegram chat ID';
   if (channelType === 'email') return 'Email address';
   if (channelType === 'zalo') return 'Zalo recipient / user ID';
+  if (channelType === 'sms' || channelType === 'voice_call') return '+15551234567';
   return '';
+}
+
+function getChannelLabel(channelType: NotificationChannelType): string {
+  if (channelType === 'web_push') return 'Web Push';
+  if (channelType === 'native_push') return 'Native Push';
+  if (channelType === 'sms') return 'SMS';
+  if (channelType === 'voice_call') return 'Voice Call';
+  return channelType.charAt(0).toUpperCase() + channelType.slice(1);
 }
 
 function getChannelStatusColor(status: NotificationChannelConfig['status']): string {
@@ -128,6 +143,10 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
   const [notificationChannels, setNotificationChannels] = useState<NotificationChannelConfig[]>([]);
   const [channelAddresses, setChannelAddresses] = useState<Record<string, string>>({});
   const [channelSaving, setChannelSaving] = useState<Record<string, boolean>>({});
+  const [nativePushStatus, setNativePushStatus] = useState<NativePushStatus | null>(null);
+  const [nativePushTesting, setNativePushTesting] = useState(false);
+  const [phoneVerificationCodes, setPhoneVerificationCodes] = useState<Record<string, string>>({});
+  const [phoneVerificationSending, setPhoneVerificationSending] = useState<Record<string, boolean>>({});
   const [enQuickLines, setEnQuickLines] = useState('');
   const [viQuickLines, setViQuickLines] = useState('');
   const [initialQuickLines, setInitialQuickLines] = useState({ en: '', vi: '' });
@@ -140,6 +159,9 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
   const telegramChannel = notificationChannels.find((channel) => channel.channelType === 'telegram') ?? null;
   const emailChannel = notificationChannels.find((channel) => channel.channelType === 'email') ?? null;
   const zaloChannel = notificationChannels.find((channel) => channel.channelType === 'zalo') ?? null;
+  const nativePushChannel = notificationChannels.find((channel) => channel.channelType === 'native_push') ?? null;
+  const smsChannel = notificationChannels.find((channel) => channel.channelType === 'sms') ?? null;
+  const voiceCallChannel = notificationChannels.find((channel) => channel.channelType === 'voice_call') ?? null;
   const avatarUrl = getUserAvatar(user);
   const timeZoneOptions = useMemo(
     () => buildTimeZoneOptions(userTimeZone, detectedTimeZone, userTimeZone),
@@ -174,9 +196,10 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
       fetchNotificationChannels().catch(() => [] as NotificationChannelConfig[]),
       fetchMatchAlertSettings('').catch(() => null),
       fetchConditionAlertPresets('').catch(() => [] as ConditionAlertPreset[]),
+      fetchNativePushStatus().catch(() => null),
       isPushSupported() ? getExistingSubscription().catch(() => null) : Promise.resolve(null),
     ])
-      .then(([config, channels, alertSettings, alertPresets, existingSubscription]) => {
+      .then(([config, channels, alertSettings, alertPresets, nativeStatus, existingSubscription]) => {
         if (!active) return;
         if (config) {
           setUiLanguage(config.UI_LANGUAGE === 'en' ? 'en' : 'vi');
@@ -200,6 +223,7 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
         setNotificationChannels(channels);
         setMatchAlertSettings(alertSettings);
         setConditionAlertPresets(alertPresets);
+        setNativePushStatus(nativeStatus);
         setChannelAddresses(
           Object.fromEntries(
             channels
@@ -447,11 +471,76 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
         address: nextAddress || null,
       });
       syncChannel(saved);
-      showToast(`${channel.channelType === 'telegram' ? 'Telegram' : channel.channelType === 'email' ? 'Email' : 'Zalo'} target saved`, 'success');
+      showToast(`${getChannelLabel(channel.channelType)} target saved`, 'success');
     } catch (err) {
       showToast(userMessageForNotificationChannelFailure(err, 'Không lưu được kênh thông báo.'), 'error');
     } finally {
       setChannelSaving((prev) => ({ ...prev, [channel.channelType]: false }));
+    }
+  };
+
+  const handleFallbackChannelDisable = async (channel: NotificationChannelConfig) => {
+    const nextAddress = (channelAddresses[channel.channelType] ?? channel.address ?? '').trim();
+    setChannelSaving((prev) => ({ ...prev, [channel.channelType]: true }));
+    try {
+      const saved = await persistNotificationChannel(channel.channelType, {
+        enabled: false,
+        address: nextAddress || null,
+        metadata: {
+          ...(channel.metadata ?? {}),
+          criticalFallback: true,
+        },
+      });
+      syncChannel(saved);
+      showToast(`${getChannelLabel(channel.channelType)} disabled`, 'success');
+    } catch (err) {
+      showToast(userMessageForNotificationChannelFailure(err, `Không lưu được ${getChannelLabel(channel.channelType)}.`), 'error');
+    } finally {
+      setChannelSaving((prev) => ({ ...prev, [channel.channelType]: false }));
+    }
+  };
+
+  const handleSendPhoneVerification = async (channel: NotificationChannelConfig) => {
+    if (channel.channelType !== 'sms' && channel.channelType !== 'voice_call') return;
+    const address = (channelAddresses[channel.channelType] ?? channel.address ?? '').trim();
+    setPhoneVerificationSending((prev) => ({ ...prev, [channel.channelType]: true }));
+    try {
+      await startPhoneVerification(channel.channelType, address);
+      showToast(`Verification code sent to ${address}`, 'success');
+      const channels = await fetchNotificationChannels();
+      setNotificationChannels(channels);
+    } catch (err) {
+      showToast(userMessageForNotificationChannelFailure(err, `Không gửi được mã ${getChannelLabel(channel.channelType)}.`), 'error');
+    } finally {
+      setPhoneVerificationSending((prev) => ({ ...prev, [channel.channelType]: false }));
+    }
+  };
+
+  const handleVerifyPhoneChannel = async (channel: NotificationChannelConfig) => {
+    if (channel.channelType !== 'sms' && channel.channelType !== 'voice_call') return;
+    const address = (channelAddresses[channel.channelType] ?? channel.address ?? '').trim();
+    const code = (phoneVerificationCodes[channel.channelType] ?? '').trim();
+    setChannelSaving((prev) => ({ ...prev, [channel.channelType]: true }));
+    try {
+      const saved = await verifyPhoneChannel(channel.channelType, address, code);
+      syncChannel(saved);
+      showToast(`${getChannelLabel(channel.channelType)} verified and enabled`, 'success');
+    } catch (err) {
+      showToast(userMessageForNotificationChannelFailure(err, `Không xác minh được ${getChannelLabel(channel.channelType)}.`), 'error');
+    } finally {
+      setChannelSaving((prev) => ({ ...prev, [channel.channelType]: false }));
+    }
+  };
+
+  const handleNativePushTest = async () => {
+    setNativePushTesting(true);
+    try {
+      const result = await sendNativePushTest();
+      showToast(`Native push test sent: ${result.delivered}/${result.attempted}`, result.delivered > 0 ? 'success' : 'error');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Native push test failed', 'error');
+    } finally {
+      setNativePushTesting(false);
     }
   };
 
@@ -461,8 +550,12 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
   const webPushReady = webPushEnabled && hasWebPushSubscription && webPushPermission === 'granted';
   const webPushStatusLabel = !webPushEnabled ? 'Off' : webPushReady ? 'Ready' : webPushPermission === 'denied' ? 'Blocked' : 'Setup required';
   const webPushStatusColor = webPushReady ? '#047857' : webPushPermission === 'denied' ? '#991b1b' : webPushEnabled ? '#92400e' : 'var(--gray-500)';
+  const nativePushReady = (nativePushStatus?.deviceCount ?? 0) > 0;
+  const nativePushStatusLabel = nativePushReady ? `${nativePushStatus?.deviceCount ?? 0} device${nativePushStatus?.deviceCount === 1 ? '' : 's'}` : 'No native device';
+  const nativePushStatusColor = nativePushReady ? '#047857' : 'var(--gray-500)';
   const quickPromptsUnchanged = enQuickLines === initialQuickLines.en && viQuickLines === initialQuickLines.vi;
   const displayNameUnchanged = displayNameDraft.trim() === getUserDisplayName(user);
+  const fallbackChannels = [smsChannel, voiceCallChannel].filter((channel): channel is NotificationChannelConfig => channel != null);
   const futureChannels = [emailChannel, zaloChannel].filter((channel): channel is NotificationChannelConfig => channel != null);
   const TABS: { id: ProfileTab; label: string }[] = [
     { id: 'identity',      label: 'Profile' },
@@ -907,6 +1000,110 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
               </div>
             </div>
           )}
+
+          {nativePushChannel && (
+            <div className={`profile-channel-card${nativePushReady ? ' profile-channel-card--ready-green' : ''}`}>
+              <div className="profile-channel-card__head">
+                <div style={{ flex: '1 1 200px' }}>
+                  <div className="profile-channel-card__title-row">
+                    <span className="profile-channel-card__title">Native Push</span>
+                    <span className="profile-channel-status" style={{ color: nativePushStatusColor, borderColor: `${nativePushStatusColor}33` }}>
+                      {nativePushStatusLabel}
+                    </span>
+                    {nativePushStatus?.senderConfigured === false && (
+                      <span className="profile-channel-tag profile-channel-tag--pending">FCM env pending</span>
+                    )}
+                  </div>
+                  <div className="profile-channel-card__hint">
+                    {nativePushReady
+                      ? `${nativePushStatus?.localNotificationDeviceCount ?? 0} device(s) can schedule local kickoff alarms.`
+                      : getChannelDescription(nativePushChannel)}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  disabled={!nativePushReady || nativePushStatus?.senderConfigured !== true || nativePushTesting}
+                  onClick={() => void handleNativePushTest()}
+                >
+                  {nativePushTesting ? 'Sending...' : 'Send test'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {fallbackChannels.map((channel) => {
+            const label = getChannelLabel(channel.channelType);
+            const address = channelAddresses[channel.channelType] ?? channel.address ?? '';
+            const verified = channel.metadata?.phoneVerificationStatus === 'verified';
+            const ready = channel.enabled && address.trim() !== '' && verified;
+            const statusColor = ready ? '#047857' : channel.enabled ? '#92400e' : 'var(--gray-500)';
+            return (
+              <div key={channel.channelType} className={`profile-channel-card${ready ? ' profile-channel-card--ready-green' : channel.enabled ? ' profile-channel-card--warn' : ''}`}>
+                <div className="profile-channel-card__head">
+                  <div style={{ flex: '1 1 200px' }}>
+                    <div className="profile-channel-card__title-row">
+                      <span className="profile-channel-card__title">{label}</span>
+                      <span className="profile-channel-status" style={{ color: statusColor, borderColor: `${statusColor}33` }}>
+                        {!channel.enabled ? 'Off' : ready ? 'Critical fallback' : 'Setup required'}
+                      </span>
+                      <span className="profile-channel-tag profile-channel-tag--pending">Premium critical only</span>
+                    </div>
+                    <div className="profile-channel-card__hint">{getChannelDescription(channel)}</div>
+                  </div>
+                  <Toggle
+                    on={channel.enabled}
+                    disabled={channelSaving[channel.channelType] === true}
+                    onChange={(value) => {
+                      if (value) {
+                        void handleSendPhoneVerification(channel);
+                      } else {
+                        void handleFallbackChannelDisable(channel);
+                      }
+                    }}
+                    label={`Toggle ${label}`}
+                  />
+                </div>
+                <div className="profile-channel-card__body">
+                  <div className="profile-channel-card__actions">
+                    <input
+                      type="tel"
+                      className="filter-input"
+                      value={address}
+                      placeholder={getChannelPlaceholder(channel.channelType)}
+                      onChange={(e) => setChannelAddresses((prev) => ({ ...prev, [channel.channelType]: e.target.value }))}
+                      aria-label={`${label} phone number`}
+                    />
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      disabled={phoneVerificationSending[channel.channelType] === true}
+                      onClick={() => { void handleSendPhoneVerification(channel); }}
+                    >
+                      {phoneVerificationSending[channel.channelType] === true ? 'Sending...' : 'Send code'}
+                    </button>
+                  </div>
+                  <div className="profile-channel-card__actions">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      className="filter-input"
+                      value={phoneVerificationCodes[channel.channelType] ?? ''}
+                      placeholder="6-digit code"
+                      onChange={(e) => setPhoneVerificationCodes((prev) => ({ ...prev, [channel.channelType]: e.target.value }))}
+                      aria-label={`${label} verification code`}
+                    />
+                    <button
+                      className="btn btn-primary btn-sm"
+                      disabled={channelSaving[channel.channelType] === true}
+                      onClick={() => { void handleVerifyPhoneChannel(channel); }}
+                    >
+                      {channelSaving[channel.channelType] === true ? 'Verifying...' : `Verify ${label}`}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
 
           {futureChannels.length > 0 && (
             <details className="profile-collapsible profile-collapsible--muted">

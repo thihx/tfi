@@ -22,8 +22,16 @@ describe('notification channels repository', () => {
     const result = await getNotificationChannelConfigs('user-1');
     const webPush = result.find((row) => row.channelType === 'web_push');
 
-    expect(result).toHaveLength(4);
-    expect(result.map((row) => row.channelType)).toEqual(['telegram', 'zalo', 'web_push', 'email']);
+    expect(result).toHaveLength(7);
+    expect(result.map((row) => row.channelType)).toEqual([
+      'telegram',
+      'zalo',
+      'web_push',
+      'native_push',
+      'email',
+      'sms',
+      'voice_call',
+    ]);
     expect(result[0]?.metadata).toMatchObject({ senderImplemented: true });
     expect(webPush).toMatchObject({
       enabled: false,

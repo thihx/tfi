@@ -19,13 +19,24 @@ interface SubscribeBody {
 
 export async function pushRoutes(app: FastifyInstance) {
   const getPushStatus = async (req: FastifyRequest, reply: FastifyReply) => {
-    if (!isWebPushConfigured()) {
-      return reply.status(503).send({ error: 'Web Push not configured on this server.' });
-    }
     const user = requireCurrentUser(req, reply);
     if (!user) return;
+    const configured = isWebPushConfigured();
     const count = await countSubscriptionsByUserId(user.userId);
-    return { configured: true, subscriptionCount: count };
+    return {
+      configured,
+      subscriptionCount: count,
+      ready: configured && count > 0,
+      vapid: {
+        publicKeyPresent: Boolean(config.vapidPublicKey),
+        privateKeyPresent: Boolean(config.vapidPrivateKey),
+        contactEmailPresent: Boolean(config.vapidContactEmail),
+      },
+      subscription: {
+        count,
+        hasActiveSubscription: count > 0,
+      },
+    };
   };
 
   const subscribeCurrentUser = async (

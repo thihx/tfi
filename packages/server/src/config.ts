@@ -18,11 +18,16 @@ function loadEnvFile(path: string, override: boolean): void {
 export const DEFAULT_LIVE_STATUSES = ['1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT'] as const;
 
 // Repo root first (monorepo defaults), Azure deploy profile, then packages/server (overrides). Finally cwd `.env` fills gaps.
+const isTestRuntime = process.env['NODE_ENV'] === 'test'
+  || process.env['VITEST'] === 'true'
+  || process.env['VITEST_WORKER_ID'] != null
+  || process.argv.some((arg) => arg.toLowerCase().includes('vitest'));
+const allowPackageEnvOverride = !isTestRuntime;
 loadEnvFile(resolve(repoRoot, '.env'), false);
 loadEnvFile(resolve(repoRoot, '.env.local'), false);
 loadEnvFile(resolve(repoRoot, '.env.azure'), false);
-loadEnvFile(resolve(serverPackageRoot, '.env'), true);
-loadEnvFile(resolve(serverPackageRoot, '.env.local'), true);
+loadEnvFile(resolve(serverPackageRoot, '.env'), allowPackageEnvOverride);
+loadEnvFile(resolve(serverPackageRoot, '.env.local'), allowPackageEnvOverride);
 dotenv.config();
 
 export const config = {
@@ -43,6 +48,42 @@ export const config = {
   footballApiCriticalPct: Number(process.env['FOOTBALL_API_CRITICAL_PCT'] || 95),
   /** Per-run API call budget for refresh-provider-insights (0 = unlimited). */
   refreshProviderInsightsApiBudget: Number(process.env['REFRESH_PROVIDER_INSIGHTS_API_BUDGET'] || 30),
+
+  // Sportmonks provider 2. Disabled by default; stats/events fallback requires explicit opt-in flags.
+  sportmonksEnabled: process.env['SPORTMONKS_ENABLED'] === 'true',
+  sportmonksShadowEnabled: process.env['SPORTMONKS_SHADOW_ENABLED'] === 'true',
+  sportmonksApiToken: process.env['SPORTMONKS_API_TOKEN'] || '',
+  sportmonksApiBaseUrl: process.env['SPORTMONKS_API_BASE_URL'] || process.env['SPORTMONKS_BASE_URL'] || 'https://api.sportmonks.com/v3/football',
+  sportmonksApiTimeoutMs: Number(process.env['SPORTMONKS_API_TIMEOUT_MS'] || 15_000),
+  sportmonksShadowMaxCallsPerRun: Number(
+    process.env['SPORTMONKS_SHADOW_MAX_CALLS_PER_RUN']
+    || process.env['SPORTMONKS_MAX_CALLS_PER_RUN']
+    || process.env['SPORTMONKS_POC_MAX_CALLS_PER_RUN']
+    || 10,
+  ),
+  sportmonksPriorityLeagueIds: (process.env['SPORTMONKS_PRIORITY_LEAGUE_IDS'] || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean),
+  jobSportmonksShadowPocMs: Number(process.env['JOB_SPORTMONKS_SHADOW_POC_MS'] || 0),
+  sportmonksAllowStatsFallback: process.env['SPORTMONKS_ALLOW_STATS_FALLBACK'] === 'true',
+  sportmonksAllowEventsFallback: process.env['SPORTMONKS_ALLOW_EVENTS_FALLBACK'] === 'true',
+  sportmonksAllowOddsFallback: process.env['SPORTMONKS_ALLOW_ODDS_FALLBACK'] === 'true',
+
+  // Multi-provider fusion pipeline read abstraction. Phase 6 is shadow-only by default.
+  providerFusionEnabled: process.env['PROVIDER_FUSION_ENABLED'] === 'true',
+  providerFusionShadowEnabled: process.env['PROVIDER_FUSION_SHADOW_ENABLED'] === 'true',
+  providerFusionPromotionEnabled: process.env['PROVIDER_FUSION_PROMOTION_ENABLED'] === 'true',
+  providerFusionStatsEventsPromotion: process.env['PROVIDER_FUSION_STATS_EVENTS_PROMOTION'] === 'true',
+  providerFusionOddsShadowEnabled: process.env['PROVIDER_FUSION_ODDS_SHADOW_ENABLED'] === 'true',
+  providerFusionOddsPromotion: process.env['PROVIDER_FUSION_ODDS_PROMOTION'] === 'true',
+  providerFusionOddsProviderAllowlist: (process.env['PROVIDER_FUSION_ODDS_PROVIDER_ALLOWLIST'] || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean),
+  providerFusionRolloutPercent: Number(process.env['PROVIDER_FUSION_ROLLOUT_PERCENT'] || 0),
+  providerFusionKillSwitch: process.env['PROVIDER_FUSION_KILL_SWITCH'] === 'true',
+
   /** Max matches auto-added to watchlist per run of auto-add-top-league-watchlist (0 = unlimited). */
   autoAddTopLeagueMaxPerRun: Number(process.env['AUTO_ADD_TOP_LEAGUE_MAX_PER_RUN'] || 20),
   /** Only auto-add matches kicking off within this many hours (0 = no filter). */
@@ -199,6 +240,26 @@ export const config = {
   vapidPublicKey: process.env['VAPID_PUBLIC_KEY'] || '',
   vapidPrivateKey: process.env['VAPID_PRIVATE_KEY'] || '',
   vapidContactEmail: process.env['VAPID_CONTACT_EMAIL'] || '',
+
+  // Native push (FCM HTTP v1). iOS can use Firebase Messaging so the server still sends via FCM.
+  fcmProjectId: process.env['FCM_PROJECT_ID'] || '',
+  fcmClientEmail: process.env['FCM_CLIENT_EMAIL'] || '',
+  fcmPrivateKey: (process.env['FCM_PRIVATE_KEY'] || '').replace(/\\n/g, '\n'),
+  fcmServiceAccountJson: process.env['FCM_SERVICE_ACCOUNT_JSON'] || '',
+  nativePushDeviceKeepDays: Number(process.env['NATIVE_PUSH_DEVICE_KEEP_DAYS'] || 180),
+
+  // Critical fallback (Twilio SMS/voice).
+  twilioAccountSid: process.env['TWILIO_ACCOUNT_SID'] || '',
+  twilioAuthToken: process.env['TWILIO_AUTH_TOKEN'] || '',
+  twilioFromNumber: process.env['TWILIO_FROM_NUMBER'] || '',
+  criticalFallbackSmsEnabled: process.env['CRITICAL_FALLBACK_SMS_ENABLED'] === 'true',
+  criticalFallbackVoiceCallEnabled: process.env['CRITICAL_FALLBACK_VOICE_CALL_ENABLED'] === 'true',
+  criticalFallbackSmsMaxPerUserDay: Number(process.env['CRITICAL_FALLBACK_SMS_MAX_PER_USER_DAY'] || 10),
+  criticalFallbackVoiceCallMaxPerUserDay: Number(process.env['CRITICAL_FALLBACK_VOICE_CALL_MAX_PER_USER_DAY'] || 3),
+  criticalFallbackSmsMaxGlobalDay: Number(process.env['CRITICAL_FALLBACK_SMS_MAX_GLOBAL_DAY'] || 0),
+  criticalFallbackVoiceCallMaxGlobalDay: Number(process.env['CRITICAL_FALLBACK_VOICE_CALL_MAX_GLOBAL_DAY'] || 0),
+  criticalFallbackSmsEstimatedUnitCostUsd: Number(process.env['CRITICAL_FALLBACK_SMS_ESTIMATED_UNIT_COST_USD'] || 0),
+  criticalFallbackVoiceCallEstimatedUnitCostUsd: Number(process.env['CRITICAL_FALLBACK_VOICE_CALL_ESTIMATED_UNIT_COST_USD'] || 0),
 
   // Historical prompt-shadow rows may still be retained for ops reports, but
   // live analysis runtime uses the single official prompt from live-analysis-prompt.ts.

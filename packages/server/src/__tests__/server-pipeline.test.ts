@@ -35,6 +35,15 @@ const { mockConfig } = vi.hoisted(() => ({
     linePatienceConfigPath: '',
     thesisWatchEnabled: false,
     thesisWatchTtlMinutes: 45,
+    providerFusionEnabled: false,
+    providerFusionShadowEnabled: false,
+    providerFusionPromotionEnabled: false,
+    providerFusionStatsEventsPromotion: false,
+    providerFusionOddsShadowEnabled: false,
+    providerFusionOddsPromotion: false,
+    providerFusionOddsProviderAllowlist: [] as string[],
+    providerFusionRolloutPercent: 0,
+    providerFusionKillSwitch: false,
   },
 }));
 
@@ -447,6 +456,15 @@ beforeEach(async () => {
   mockConfig.runtimePolicyPromotionMaxStakePercent = 1;
   mockConfig.runtimePolicyPromotionEvidenceAck = '';
   mockConfig.runtimePolicyPromotionOwner = '';
+  mockConfig.providerFusionEnabled = false;
+  mockConfig.providerFusionShadowEnabled = false;
+  mockConfig.providerFusionPromotionEnabled = false;
+  mockConfig.providerFusionStatsEventsPromotion = false;
+  mockConfig.providerFusionOddsShadowEnabled = false;
+  mockConfig.providerFusionOddsPromotion = false;
+  mockConfig.providerFusionOddsProviderAllowlist = [];
+  mockConfig.providerFusionRolloutPercent = 0;
+  mockConfig.providerFusionKillSwitch = false;
   mockUpsertPendingThesisWatch.mockReset();
   mockUpsertPendingThesisWatch.mockResolvedValue({});
   mockGetPendingThesisWatchesByMatchId.mockReset();
@@ -571,6 +589,308 @@ describe('runPipelineBatch', () => {
     expect(match.confidence).toBe(8);
     expect(match.saved).toBe(true);
     expect(match.notified).toBe(true);
+  });
+
+  test('emits provider fusion shadow diff without changing save or push behavior when promotion is disabled', async () => {
+    const { audit } = await import('../lib/audit.js');
+    const { createRecommendation } = await import('../repos/recommendations.repo.js');
+
+    mockConfig.providerFusionEnabled = true;
+    mockConfig.providerFusionShadowEnabled = true;
+    mockConfig.providerFusionPromotionEnabled = false;
+
+    const result = await runPipelineBatch(['100']);
+    const match = result.results[0];
+
+    expect(match.shouldPush).toBe(true);
+    expect(match.saved).toBe(true);
+    expect(match.notified).toBe(true);
+    expect(createRecommendation).toHaveBeenCalledTimes(1);
+    expect(audit).toHaveBeenCalledWith(expect.objectContaining({
+      category: 'PIPELINE',
+      action: 'PIPELINE_PROVIDER_FUSION_SHADOW_DIFF',
+      outcome: 'DIFF',
+      match_id: '100',
+      metadata: expect.objectContaining({
+        contract: 'provider-fusion-phase-6-shadow-parity',
+        promotionEnabled: false,
+        promptEquivalent: false,
+        changedFields: ['odds'],
+        diff: expect.objectContaining({
+          moneyGuard: expect.objectContaining({
+            canPromoteWithoutBehaviorChange: false,
+            hardBlockReasons: ['promotion_disabled', 'prompt_relevant_diff'],
+          }),
+        }),
+      }),
+    }));
+  });
+
+  test('emits provider fusion odds shadow without changing recommendation save or push behavior', async () => {
+    const { audit } = await import('../lib/audit.js');
+    const { createRecommendation } = await import('../repos/recommendations.repo.js');
+
+    mockConfig.providerFusionEnabled = true;
+    mockConfig.providerFusionOddsShadowEnabled = true;
+    mockConfig.providerFusionOddsPromotion = false;
+
+    const result = await runPipelineBatch(['100']);
+    const match = result.results[0];
+
+    expect(match.shouldPush).toBe(true);
+    expect(match.saved).toBe(true);
+    expect(match.notified).toBe(true);
+    expect(createRecommendation).toHaveBeenCalledTimes(1);
+    expect(audit).toHaveBeenCalledWith(expect.objectContaining({
+      category: 'PIPELINE',
+      action: 'PIPELINE_PROVIDER_FUSION_ODDS_SHADOW',
+      outcome: 'SUCCESS',
+      match_id: '100',
+      metadata: expect.objectContaining({
+        contract: 'provider-fusion-phase-8-odds-shadow',
+        shadowOnly: true,
+        productionBehaviorChanged: false,
+        canSaveRecommendation: false,
+        canUseFusionOddsForMoneyDecision: true,
+        oddsPromotionEnabled: false,
+        hardBlockReasons: [],
+      }),
+    }));
+    expect(result.results[0]?.debug?.providerFusion).toEqual(expect.objectContaining({
+      oddsShadow: expect.objectContaining({
+        contract: 'provider-fusion-phase-8-odds-shadow',
+        shadowOnly: true,
+        productionBehaviorChanged: false,
+        canSaveRecommendation: false,
+      }),
+    }));
+  });
+
+  test('promotes provider fusion live odds through the save path when controlled rollout passes', async () => {
+    const { audit } = await import('../lib/audit.js');
+    const { createRecommendation } = await import('../repos/recommendations.repo.js');
+
+    mockConfig.providerFusionEnabled = true;
+    mockConfig.providerFusionOddsPromotion = true;
+    mockConfig.providerFusionOddsProviderAllowlist = ['api-football'];
+    mockConfig.providerFusionRolloutPercent = 100;
+    mockConfig.providerFusionKillSwitch = false;
+
+    const result = await runPipelineBatch(['100']);
+    const match = result.results[0];
+
+    expect(match.shouldPush).toBe(true);
+    expect(match.saved).toBe(true);
+    expect(match.notified).toBe(true);
+    expect(createRecommendation).toHaveBeenCalledTimes(1);
+    expect(createRecommendation).toHaveBeenCalledWith(expect.objectContaining({
+      odds: 2.1,
+      odds_snapshot: expect.objectContaining({
+        ah: { line: -0.25, home: 1.82, away: 2.1 },
+      }),
+      decision_context: expect.objectContaining({
+        providerFusionOddsPromotion: expect.objectContaining({
+          contract: 'provider-fusion-phase-9-odds-promotion',
+          promoted: true,
+          productionBehaviorChanged: true,
+          canSaveRecommendation: true,
+          provider: 'api-football',
+        }),
+        saveIntegrityStatus: 'ok',
+        saveMappedOdd: 2.1,
+      }),
+    }));
+    expect(audit).toHaveBeenCalledWith(expect.objectContaining({
+      category: 'PIPELINE',
+      action: 'PIPELINE_PROVIDER_FUSION_ODDS_PROMOTION',
+      outcome: 'SUCCESS',
+      match_id: '100',
+      metadata: expect.objectContaining({
+        contract: 'provider-fusion-phase-9-odds-promotion',
+        promoted: true,
+        provider: 'api-football',
+        hardBlockReasons: [],
+      }),
+    }));
+    expect(match.debug?.providerFusion).toEqual(expect.objectContaining({
+      activeOddsSource: 'api-football',
+      oddsPromotion: expect.objectContaining({
+        contract: 'provider-fusion-phase-9-odds-promotion',
+        promoted: true,
+      }),
+    }));
+  });
+
+  test('can run official stats/events and odds promotion together', async () => {
+    const footballApi = await import('../lib/football-api.js');
+    const insight = await import('../lib/provider-insight-cache.js');
+    const { audit } = await import('../lib/audit.js');
+    const { createRecommendation } = await import('../repos/recommendations.repo.js');
+    const nowIso = '2026-06-13T12:00:00.000Z';
+
+    mockConfig.providerFusionEnabled = true;
+    mockConfig.providerFusionPromotionEnabled = true;
+    mockConfig.providerFusionStatsEventsPromotion = true;
+    mockConfig.providerFusionOddsPromotion = true;
+    mockConfig.providerFusionOddsProviderAllowlist = ['api-football'];
+    mockConfig.providerFusionRolloutPercent = 100;
+    mockConfig.providerFusionKillSwitch = false;
+
+    vi.mocked(insight.ensureMatchInsight).mockResolvedValueOnce({
+      fixture: { payload: mockFixture, freshness: 'fresh', cacheStatus: 'hit', cachedAt: nowIso, fetchedAt: nowIso, degraded: false },
+      statistics: {
+        payload: [
+          { team: { id: 1, name: 'Team A' }, statistics: [
+            { type: 'Ball Possession', value: '57%' },
+            { type: 'Total Shots', value: 14 },
+            { type: 'Shots on Goal', value: 6 },
+            { type: 'Corner Kicks', value: 7 },
+          ] },
+          { team: { id: 2, name: 'Team B' }, statistics: [
+            { type: 'Ball Possession', value: '43%' },
+            { type: 'Total Shots', value: 9 },
+            { type: 'Shots on Goal', value: 4 },
+            { type: 'Corner Kicks', value: 5 },
+          ] },
+        ],
+        provider: 'sportmonks',
+        coverageFlags: {
+          provider_fixture_id: '98765',
+          mapping_confidence: 'high',
+          fallback_from: 'api-football',
+        },
+        freshness: 'fresh',
+        cacheStatus: 'hit',
+        cachedAt: nowIso,
+        fetchedAt: nowIso,
+        degraded: false,
+      },
+      events: {
+        payload: [
+          { time: { elapsed: 23 }, team: { id: 1, name: 'Team A' }, type: 'Goal', detail: 'Normal Goal', player: { name: 'Player A' } },
+          { time: { elapsed: 55 }, team: { id: 2, name: 'Team B' }, type: 'Goal', detail: 'Normal Goal', player: { name: 'Player B' } },
+        ],
+        provider: 'sportmonks',
+        coverageFlags: {
+          provider_fixture_id: '98765',
+          mapping_confidence: 'high',
+          fallback_from: 'api-football',
+        },
+        freshness: 'fresh',
+        cacheStatus: 'hit',
+        cachedAt: nowIso,
+        fetchedAt: nowIso,
+        degraded: false,
+      },
+    } as never);
+
+    const result = await runPipelineBatch(['100']);
+    const match = result.results[0];
+
+    expect(match).toEqual(expect.objectContaining({
+      shouldPush: true,
+      saved: true,
+      notified: true,
+    }));
+    expect(match?.debug).toEqual(expect.objectContaining({
+      statsSource: 'sportmonks',
+      statsFallbackUsed: true,
+      statsFallbackReason: 'provider_fusion_phase_7_sportmonks',
+      oddsSource: 'live',
+      oddsAvailable: true,
+    }));
+    expect(match?.debug?.providerFusion).toEqual(expect.objectContaining({
+      activeStatsSource: 'sportmonks',
+      activeOddsSource: 'api-football',
+      statsEventsPromotion: expect.objectContaining({
+        promoted: true,
+        oddsPromotionEnabled: true,
+        savePolicyChanged: false,
+      }),
+      oddsPromotion: expect.objectContaining({
+        promoted: true,
+        productionBehaviorChanged: true,
+        canSaveRecommendation: true,
+      }),
+    }));
+    expect(createRecommendation).toHaveBeenCalledWith(expect.objectContaining({
+      odds: 2.1,
+      odds_snapshot: expect.objectContaining({
+        ah: { line: -0.25, home: 1.82, away: 2.1 },
+      }),
+      stats_snapshot: expect.objectContaining({
+        possession: { home: '57%', away: '43%' },
+        shots_on_target: { home: '6', away: '4' },
+      }),
+      decision_context: expect.objectContaining({
+        statsSource: 'sportmonks',
+        providerFusionStatsEventsPromotion: expect.objectContaining({
+          promoted: true,
+          oddsPromotionEnabled: true,
+        }),
+        providerFusionOddsPromotion: expect.objectContaining({
+          promoted: true,
+          provider: 'api-football',
+        }),
+        saveIntegrityStatus: 'ok',
+      }),
+    }));
+    expect(audit).toHaveBeenCalledWith(expect.objectContaining({
+      category: 'PIPELINE',
+      action: 'PIPELINE_PROVIDER_FUSION_STATS_EVENTS_PROMOTION',
+      outcome: 'SUCCESS',
+      metadata: expect.objectContaining({
+        promoted: true,
+        oddsPromotionEnabled: true,
+      }),
+    }));
+    expect(audit).toHaveBeenCalledWith(expect.objectContaining({
+      category: 'PIPELINE',
+      action: 'PIPELINE_PROVIDER_FUSION_ODDS_PROMOTION',
+      outcome: 'SUCCESS',
+      metadata: expect.objectContaining({
+        promoted: true,
+        provider: 'api-football',
+      }),
+    }));
+  });
+
+  test('honors provider fusion odds kill switch as immediate rollback to legacy odds', async () => {
+    const { audit } = await import('../lib/audit.js');
+    const { createRecommendation } = await import('../repos/recommendations.repo.js');
+
+    mockConfig.providerFusionEnabled = true;
+    mockConfig.providerFusionOddsPromotion = true;
+    mockConfig.providerFusionOddsProviderAllowlist = ['api-football'];
+    mockConfig.providerFusionRolloutPercent = 100;
+    mockConfig.providerFusionKillSwitch = true;
+
+    const result = await runPipelineBatch(['100']);
+
+    expect(result.results[0]?.saved).toBe(true);
+    expect(createRecommendation).toHaveBeenCalledTimes(1);
+    expect(createRecommendation).toHaveBeenCalledWith(expect.objectContaining({
+      odds: 2.1,
+      decision_context: expect.objectContaining({
+        providerFusionOddsPromotion: expect.objectContaining({
+          promoted: false,
+          productionBehaviorChanged: false,
+          reason: 'promotion_kill_switch',
+          blocksRecommendationSave: false,
+        }),
+      }),
+    }));
+    expect(audit).toHaveBeenCalledWith(expect.objectContaining({
+      category: 'PIPELINE',
+      action: 'PIPELINE_PROVIDER_FUSION_ODDS_PROMOTION',
+      outcome: 'SKIPPED',
+      match_id: '100',
+      metadata: expect.objectContaining({
+        contract: 'provider-fusion-phase-9-odds-promotion',
+        reason: 'promotion_kill_switch',
+        productionBehaviorChanged: false,
+      }),
+    }));
   });
 
   test('stages a No Action live signal when analysis produces no saved bet', async () => {
@@ -1903,6 +2223,148 @@ describe('runPipelineBatch', () => {
       enqueued: 1,
       llmCalled: false,
       savedRecommendation: false,
+    }));
+  });
+
+  test('promotes trusted Sportmonks stats/events into stats-only push without saving when live odds are unavailable', async () => {
+    const footballApi = await import('../lib/football-api.js');
+    const insight = await import('../lib/provider-insight-cache.js');
+    const { audit } = await import('../lib/audit.js');
+    const { callGemini } = await import('../lib/gemini.js');
+    const recommendationsRepo = await import('../repos/recommendations.repo.js');
+    const matchAlertDeliveries = await import('../repos/match-alert-deliveries.repo.js');
+    const nowIso = '2026-06-13T12:00:00.000Z';
+    const promotedFixture = {
+      ...mockFixture,
+      fixture: { ...mockFixture.fixture, status: { short: '2H', elapsed: 62 } },
+      teams: {
+        home: { id: 1, name: 'South Korea' },
+        away: { id: 2, name: 'Czech Republic' },
+      },
+      league: { id: 1, name: 'World Cup' },
+      goals: { home: 0, away: 0 },
+    };
+
+    mockConfig.providerFusionEnabled = true;
+    mockConfig.providerFusionStatsEventsPromotion = true;
+    mockConfig.providerFusionOddsPromotion = false;
+
+    vi.mocked(footballApi.fetchFixturesByIds).mockResolvedValueOnce([promotedFixture] as never);
+    vi.mocked(footballApi.fetchLiveOdds).mockResolvedValueOnce([] as never);
+    vi.mocked(footballApi.fetchPreMatchOdds).mockResolvedValueOnce([{
+      bookmakers: [{
+        name: 'ReferenceBook',
+        bets: [
+          { name: 'Over/Under', values: [
+            { value: 'Over', odd: '1.90', handicap: '2.5' },
+            { value: 'Under', odd: '1.90', handicap: '2.5' },
+          ] },
+          { name: 'Match Winner', values: [
+            { value: 'Home', odd: '2.20' },
+            { value: 'Draw', odd: '3.10' },
+            { value: 'Away', odd: '3.20' },
+          ] },
+        ],
+      }],
+    }] as never);
+    vi.mocked(insight.ensureMatchInsight).mockResolvedValueOnce({
+      fixture: { payload: promotedFixture, freshness: 'fresh', cacheStatus: 'hit', cachedAt: nowIso, fetchedAt: nowIso, degraded: false },
+      statistics: {
+        payload: [
+          { team: { id: 1, name: 'South Korea' }, statistics: [
+            { type: 'Ball Possession', value: '58%' },
+            { type: 'Total Shots', value: 10 },
+            { type: 'Shots on Goal', value: 3 },
+            { type: 'Corner Kicks', value: 5 },
+          ] },
+          { team: { id: 2, name: 'Czech Republic' }, statistics: [
+            { type: 'Ball Possession', value: '42%' },
+            { type: 'Total Shots', value: 8 },
+            { type: 'Shots on Goal', value: 2 },
+            { type: 'Corner Kicks', value: 4 },
+          ] },
+        ],
+        provider: 'sportmonks',
+        coverageFlags: {
+          provider_fixture_id: '98765',
+          mapping_confidence: 'high',
+          fallback_from: 'api-football',
+        },
+        freshness: 'fresh',
+        cacheStatus: 'hit',
+        cachedAt: nowIso,
+        fetchedAt: nowIso,
+        degraded: false,
+      },
+      events: {
+        payload: [
+          { time: { elapsed: 50 }, team: { id: 2, name: 'Czech Republic' }, type: 'Card', detail: 'Yellow Card', player: { name: 'Midfielder' } },
+        ],
+        provider: 'sportmonks',
+        coverageFlags: {
+          provider_fixture_id: '98765',
+          mapping_confidence: 'high',
+          fallback_from: 'api-football',
+        },
+        freshness: 'fresh',
+        cacheStatus: 'hit',
+        cachedAt: nowIso,
+        fetchedAt: nowIso,
+        degraded: false,
+      },
+    } as never);
+
+    const result = await runPipelineBatch(['100']);
+
+    expect(callGemini).not.toHaveBeenCalled();
+    expect(recommendationsRepo.createRecommendation).not.toHaveBeenCalled();
+    expect(matchAlertDeliveries.enqueueStatsOnlyLiveSignalDeliveries).toHaveBeenCalledWith(expect.objectContaining({
+      matchId: '100',
+      homeTeam: 'South Korea',
+      awayTeam: 'Czech Republic',
+      league: 'World Cup',
+      score: '0-0',
+      signal: expect.objectContaining({
+        triggered: true,
+        signalType: 'zero_zero_pressure_after_55',
+      }),
+    }));
+    expect(result.results[0]).toEqual(expect.objectContaining({
+      decisionKind: 'condition_only',
+      shouldPush: true,
+      saved: false,
+      notified: true,
+      outputKind: 'stats_only_signal',
+      auditBucket: 'stats_only_signal_emitted',
+    }));
+    expect(result.results[0]?.debug).toEqual(expect.objectContaining({
+      statsSource: 'sportmonks',
+      statsFallbackUsed: true,
+      statsFallbackReason: 'provider_fusion_phase_7_sportmonks',
+      oddsAvailable: false,
+      evidenceMode: 'stats_only',
+    }));
+    expect(result.results[0]?.debug?.providerFusion).toEqual(expect.objectContaining({
+      activeStatsSource: 'sportmonks',
+      statsEventsPromotion: expect.objectContaining({
+        contract: 'provider-fusion-phase-7-stats-events-promotion',
+        promoted: true,
+        statsPromoted: true,
+        eventsPromoted: true,
+        oddsPolicy: 'unchanged',
+        savePolicyChanged: false,
+      }),
+    }));
+    expect(audit).toHaveBeenCalledWith(expect.objectContaining({
+      category: 'PIPELINE',
+      action: 'PIPELINE_PROVIDER_FUSION_STATS_EVENTS_PROMOTION',
+      outcome: 'SUCCESS',
+      metadata: expect.objectContaining({
+        contract: 'provider-fusion-phase-7-stats-events-promotion',
+        promoted: true,
+        oddsPromotionEnabled: false,
+        savePolicyChanged: false,
+      }),
     }));
   });
 

@@ -5,6 +5,7 @@ export type RetentionClass =
   | 'support_sample'
   | 'support_cache'
   | 'delivery_trace'
+  | 'device_token'
   | 'thesis_watch'
   | 'canonical_history'
   | 'canonical_analytics';
@@ -33,6 +34,7 @@ export interface HousekeepingKeepDays {
   pipelineRuns: number;
   jobRunHistory: number;
   recommendationDeliveries: number;
+  nativePushDevices: number;
   thesisWatch: number;
   recommendationsSlim: number;
   aiPerformance: number;
@@ -58,6 +60,7 @@ type ConfigShape = Pick<
   | 'pipelineRunsKeepDays'
   | 'jobRunHistoryKeepDays'
   | 'recommendationDeliveriesKeepDays'
+  | 'nativePushDeviceKeepDays'
   | 'thesisWatchKeepDays'
   | 'recommendationsSlimDays'
   | 'aiPerformanceKeepDays'
@@ -110,6 +113,7 @@ export function resolveHousekeepingRetentionPolicy(config: ConfigShape): Houseke
       warnings,
       { allowDisable: true },
     ),
+    nativePushDevices: clampKeepDays('native_push_devices', config.nativePushDeviceKeepDays, 30, warnings),
     thesisWatch: clampKeepDays('match_thesis_watch', config.thesisWatchKeepDays, 7, warnings),
     recommendationsSlim: clampKeepDays('recommendations slim', config.recommendationsSlimDays, 180, warnings),
     aiPerformance: clampKeepDays('ai_performance', config.aiPerformanceKeepDays, 180, warnings),
@@ -221,6 +225,16 @@ export function resolveHousekeepingRetentionPolicy(config: ConfigShape): Houseke
       effectiveKeepDays: keepDays.recommendationDeliveries,
       minimumKeepDays: 7,
       allowDisable: true,
+    },
+    {
+      key: 'nativePushDevices',
+      label: 'Native Push Devices',
+      retentionClass: 'device_token',
+      tableNames: ['native_push_devices'],
+      strategy: 'delete',
+      configuredKeepDays: config.nativePushDeviceKeepDays,
+      effectiveKeepDays: keepDays.nativePushDevices,
+      minimumKeepDays: 30,
     },
     {
       key: 'thesisWatch',

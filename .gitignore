@@ -21,6 +21,7 @@ coverage/
 packages/server/pitr-dumps/
 
 # Server replay integration (DB export + LLM cache)
+replay-work/
 packages/server/replay-work/
 packages/server/replay-benchmarks/goals-totals-benchmark/**/*.json
 packages/server/replay-benchmarks/eval-last-summary.json

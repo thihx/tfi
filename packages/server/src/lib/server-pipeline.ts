@@ -18,14 +18,6 @@ import { AiGatewayBlockedError } from './ai-gateway.js';
 import { sendTelegramMessage, sendTelegramPhoto } from './telegram.js';
 import { formatOperationalTimestamp } from './time.js';
 import { audit } from './audit.js';
-import {
-  fetchFixtureStatistics,
-  fetchFixtureEvents,
-  type ApiFixture,
-  type ApiFixtureEvent,
-  type ApiFixtureLineup,
-  type ApiFixtureStat,
-} from './football-api.js';
 import { ensureFixturesForMatchIds, ensureMatchInsight, ensureScoutInsight } from './provider-insight-cache.js';
 import * as watchlistRepo from '../repos/watchlist.repo.js';
 import {
@@ -47,7 +39,7 @@ import {
 } from '../repos/ai-performance.repo.js';
 import { getSettings } from '../repos/settings.repo.js';
 import { createSnapshot, getLatestSnapshot } from '../repos/match-snapshots.repo.js';
-import { resolveMatchOdds, summarizeNormalizedOdds } from './odds-resolver.js';
+import { resolveMatchOdds, summarizeNormalizedOdds, type ResolvedOddsSource } from './odds-resolver.js';
 import {
   checkShouldProceedServer,
   checkCoarseStalenessServer,
@@ -122,7 +114,6 @@ import {
 import { parseBetMarketLineSuffix as parseLineSuffix, sameOddsLine as sameLine } from './odds-line-utils.js';
 import { isMarketAllowedForEvidenceMode, type LiveAnalysisEvidenceMode } from './evidence-mode-market-allowlist.js';
 import { isFirstHalfApiBetName, isSecondHalfOnlyApiBetName } from './first-half-markets.js';
-import { extractHalftimeScoreFromFixture } from './settle-context.js';
 import { formatSelectionWithMarketContext } from './market-display.js';
 import {
   buildRuntimePolicyShadowSignal,
@@ -138,6 +129,38 @@ import {
   evaluateStatsOnlyLiveSignal,
   parseStatsOnlyAiAdvisoryResponse,
 } from './stats-only-live-signal.js';
+import {
+  buildPipelineEventsCompact,
+  buildPipelineFixtureInput,
+  buildPipelineProviderFusionSources,
+  buildPipelineProviderHealthSnapshot,
+  buildPipelineStatsCompact,
+  summarizePipelineLineupsForPrompt,
+  summarizePipelineStatsCoverage,
+  type PipelineEventCompact,
+  type PipelineProviderFixturePayload,
+  type PipelineProviderLineupRow,
+  type PipelineStatsCompact,
+} from './pipeline-live-input.js';
+import {
+  buildProviderFusionPipelineRead,
+  shouldBuildProviderFusionShadow,
+  type ProviderFusionPipelineReadResult,
+} from './provider-fusion-pipeline-read.js';
+import {
+  decideProviderFusionStatsEventsPromotion,
+  shouldEvaluateProviderFusionStatsEventsPromotion,
+  type ProviderFusionStatsEventsPromotionDecision,
+} from './provider-fusion-stats-events-promotion.js';
+import {
+  buildProviderFusionOddsShadow,
+  shouldBuildProviderFusionOddsShadow,
+} from './provider-fusion-odds-shadow.js';
+import {
+  decideProviderFusionOddsPromotion,
+  shouldEvaluateProviderFusionOddsPromotion,
+  type ProviderFusionOddsPromotionDecision,
+} from './provider-fusion-odds-promotion.js';
 import {
   classifyLiveEvidence,
   routeLiveOutput,
@@ -428,8 +451,6 @@ function resolveMatchOddsForPipeline(
 }
 
 const defaultPipelineDeps = {
-  fetchFixtureStatistics,
-  fetchFixtureEvents,
   ensureMatchInsight,
   ensureScoutInsight,
   resolveMatchOdds: resolveMatchOddsForPipeline,
@@ -589,35 +610,8 @@ export interface PipelineExecutionOptions {
 
 // ==================== Types ====================
 
-interface StatsCompact {
-  possession: { home: string | null; away: string | null };
-  shots: { home: string | null; away: string | null };
-  shots_on_target: { home: string | null; away: string | null };
-  corners: { home: string | null; away: string | null };
-  fouls: { home: string | null; away: string | null };
-  offsides: { home: string | null; away: string | null };
-  yellow_cards: { home: string | null; away: string | null };
-  red_cards: { home: string | null; away: string | null };
-  goalkeeper_saves: { home: string | null; away: string | null };
-  blocked_shots: { home: string | null; away: string | null };
-  total_passes: { home: string | null; away: string | null };
-  passes_accurate: { home: string | null; away: string | null };
-  shots_off_target?: { home: string | null; away: string | null };
-  shots_inside_box?: { home: string | null; away: string | null };
-  shots_outside_box?: { home: string | null; away: string | null };
-  expected_goals?: { home: string | null; away: string | null };
-  goals_prevented?: { home: string | null; away: string | null };
-  passes_percent?: { home: string | null; away: string | null };
-}
-
-interface EventCompact {
-  minute: number;
-  extra: number | null;
-  team: string;
-  type: string;
-  detail: string;
-  player: string;
-}
+type StatsCompact = PipelineStatsCompact;
+type EventCompact = PipelineEventCompact;
 
 /** Single quoted Asian handicap rung (home-centric line). */
 export type OddsAhRung = { line: number; home: number | null; away: number | null };
@@ -675,27 +669,12 @@ interface DerivedInsights {
   intensity: 'low' | 'medium' | 'high';
 }
 
-type StatsSource = 'api-football';
+type StatsSource = 'api-football' | 'sportmonks' | 'api-football+sportmonks';
 type EvidenceMode = LiveAnalysisEvidenceMode;
 
-type ProviderStatsCoverage = 'complete' | 'partial' | 'empty' | 'missing';
 type ProviderClockLagStatus = 'ok' | 'warning' | 'degraded' | 'critical' | 'unknown';
 type ProviderCoverageStatus = 'full' | 'no_live_stats' | 'clock_lag' | 'clock_lag_no_live_stats' | 'provider_unavailable';
-
-interface ProviderHealthSnapshot {
-  provider: 'api-football';
-  statisticsCoverage: ProviderStatsCoverage;
-  providerReturnedNoLiveStatistics: boolean;
-  providerClockLagMinutes: number | null;
-  providerClockLagStatus: ProviderClockLagStatus;
-  providerReportedMinute: number | null;
-  wallClockMinute: number | null;
-  fixtureFreshness: string;
-  statisticsFreshness: string;
-  eventsFreshness: string;
-  coverageStatus: ProviderCoverageStatus;
-  warnings: string[];
-}
+type ProviderHealthSnapshot = ReturnType<typeof buildPipelineProviderHealthSnapshot>;
 
 type LlmDecisionDiagnostic =
   | 'no_bet_intentional'
@@ -998,67 +977,22 @@ export interface PipelineResult {
   results: MatchPipelineResult[];
 }
 
-// ==================== Stat Helpers ====================
-
-function getStatValue(
-  teamStats: Array<{ type: string; value: string | number | null }>,
-  statName: string,
-): string | null {
-  if (!Array.isArray(teamStats)) return null;
-  const stat = teamStats.find((s) => s.type === statName);
-  return stat?.value != null ? String(stat.value) : null;
-}
-
-function parseTwoSide(h: string | null, a: string | null): { home: string | null; away: string | null } {
-  return { home: h ?? null, away: a ?? null };
-}
-
 function toNumber(v: unknown): number | null {
   if (v === null || v === undefined || v === '') return null;
   const n = Number(v);
   return isNaN(n) ? null : n;
 }
 
-function summarizeStatsCoverage(
-  statsCompact: StatsCompact,
-  statsRaw: ApiFixtureStat[],
-  eventsRaw: ApiFixtureEvent[],
-  statsError: unknown,
-  eventsError: unknown,
-): Record<string, unknown> {
-  const tracked = [
-    statsCompact.possession,
-    statsCompact.shots,
-    statsCompact.shots_on_target,
-    statsCompact.corners,
-    statsCompact.fouls,
-    statsCompact.offsides,
-    statsCompact.yellow_cards,
-    statsCompact.red_cards,
-    statsCompact.goalkeeper_saves,
-    statsCompact.blocked_shots,
-    statsCompact.total_passes,
-    statsCompact.passes_accurate,
-  ];
-  const populated = tracked.filter((value) => value.home != null || value.away != null).length;
-  return {
-    team_count: statsRaw.length,
-    event_count: eventsRaw.length,
-    populated_stat_pairs: populated,
-    total_stat_pairs: tracked.length,
-    has_possession: statsCompact.possession.home != null || statsCompact.possession.away != null,
-    has_shots: statsCompact.shots.home != null || statsCompact.shots.away != null,
-    has_shots_on_target: statsCompact.shots_on_target.home != null || statsCompact.shots_on_target.away != null,
-    has_corners: statsCompact.corners.home != null || statsCompact.corners.away != null,
-    stats_fetch_ok: !statsError,
-    events_fetch_ok: !eventsError,
-  };
-}
-
 function asObjectRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? value as Record<string, unknown>
     : null;
+}
+
+function coverageFlagString(flags: Record<string, unknown> | undefined, key: string): string | null {
+  const value = flags?.[key];
+  const text = value == null ? '' : String(value).trim();
+  return text || null;
 }
 
 function readProfileWindowSnapshot(value: unknown): {
@@ -1256,81 +1190,6 @@ function deriveEvidenceMode(
     oddsAvailable,
     eventCount: eventsCompact.length,
   }).evidenceMode;
-}
-
-function classifyProviderStatisticsCoverage(args: {
-  statsRaw: ApiFixtureStat[];
-  statsAvailable: boolean;
-  freshness: string;
-  cacheStatus: string;
-}): ProviderStatsCoverage {
-  if (args.statsAvailable) return args.statsRaw.length >= 2 ? 'complete' : 'partial';
-  if (Array.isArray(args.statsRaw) && args.statsRaw.length === 0 && args.cacheStatus !== 'miss') return 'empty';
-  if (args.freshness === 'fresh' && Array.isArray(args.statsRaw) && args.statsRaw.length === 0) return 'empty';
-  return 'missing';
-}
-
-function buildProviderHealthSnapshot(args: {
-  fixture: ApiFixture;
-  status: string;
-  minute: number;
-  statsRaw: ApiFixtureStat[];
-  statsAvailable: boolean;
-  fixtureFreshness: string;
-  statisticsFreshness: string;
-  statisticsCacheStatus: string;
-  eventsFreshness: string;
-}): ProviderHealthSnapshot {
-  void args.fixture;
-  void args.status;
-  void args.minute;
-  // Do not infer live-clock delay from wall-clock time. API-Football period
-  // timestamps are not an independent broadcast clock, and normal stoppage time
-  // or provider cadence created false "provider is delayed" reasoning.
-  const clock: Pick<ProviderHealthSnapshot, 'providerClockLagMinutes' | 'providerClockLagStatus' | 'providerReportedMinute' | 'wallClockMinute'> = {
-    providerClockLagMinutes: null,
-    providerClockLagStatus: 'unknown',
-    providerReportedMinute: Number.isFinite(args.minute) ? args.minute : null,
-    wallClockMinute: null,
-  };
-  const statisticsCoverage = classifyProviderStatisticsCoverage({
-    statsRaw: args.statsRaw,
-    statsAvailable: args.statsAvailable,
-    freshness: args.statisticsFreshness,
-    cacheStatus: args.statisticsCacheStatus,
-  });
-  const providerReturnedNoLiveStatistics = statisticsCoverage === 'empty';
-  const warnings: string[] = [];
-  if (providerReturnedNoLiveStatistics) warnings.push('provider_returned_no_live_statistics');
-  if (clock.providerClockLagStatus === 'warning') warnings.push('provider_clock_lag');
-  if (clock.providerClockLagStatus === 'degraded') warnings.push('provider_clock_lag_high');
-  if (clock.providerClockLagStatus === 'critical') warnings.push('provider_clock_lag_critical');
-
-  let coverageStatus: ProviderCoverageStatus = 'full';
-  if (providerReturnedNoLiveStatistics && clock.providerClockLagStatus !== 'ok' && clock.providerClockLagStatus !== 'unknown') {
-    coverageStatus = 'clock_lag_no_live_stats';
-  } else if (providerReturnedNoLiveStatistics) {
-    coverageStatus = 'no_live_stats';
-  } else if (clock.providerClockLagStatus !== 'ok' && clock.providerClockLagStatus !== 'unknown') {
-    coverageStatus = 'clock_lag';
-  } else if (args.fixtureFreshness === 'missing') {
-    coverageStatus = 'provider_unavailable';
-  }
-
-  return {
-    provider: 'api-football',
-    statisticsCoverage,
-    providerReturnedNoLiveStatistics,
-    providerClockLagMinutes: clock.providerClockLagMinutes,
-    providerClockLagStatus: clock.providerClockLagStatus,
-    providerReportedMinute: clock.providerReportedMinute,
-    wallClockMinute: clock.wallClockMinute,
-    fixtureFreshness: args.fixtureFreshness,
-    statisticsFreshness: args.statisticsFreshness,
-    eventsFreshness: args.eventsFreshness,
-    coverageStatus,
-    warnings,
-  };
 }
 
 function canRunStructuredPrematchAskAi(args: {
@@ -2384,46 +2243,6 @@ function deriveInsightsFromEvents(
   };
 }
 
-function summarizeLineupsForPrompt(
-  lineups: ApiFixtureLineup[] | null | undefined,
-  homeTeamName: string,
-  awayTeamName: string,
-): {
-  available: boolean;
-  teams: Array<{
-    side: 'home' | 'away';
-    teamName: string;
-    formation: string | null;
-    confirmedStarters: string[];
-    benchCount: number;
-  }>;
-} | null {
-  if (!Array.isArray(lineups) || lineups.length === 0) return null;
-
-  const teams = lineups.map((row) => {
-    const normalizedName = String(row.team?.name ?? '').trim().toLowerCase();
-    const side: 'home' | 'away' = normalizedName === awayTeamName.trim().toLowerCase() ? 'away' : 'home';
-    return {
-      side,
-      teamName: String(row.team?.name ?? (side === 'home' ? homeTeamName : awayTeamName)).trim(),
-      formation: row.formation ? String(row.formation).trim() : null,
-      confirmedStarters: Array.isArray(row.startXI)
-        ? row.startXI
-            .map((entry) => {
-              const name = String(entry.player?.name ?? '').trim();
-              const pos = entry.player?.pos ? ` (${entry.player.pos})` : '';
-              return name ? `${name}${pos}` : '';
-            })
-            .filter(Boolean)
-            .slice(0, 11)
-        : [],
-      benchCount: Array.isArray(row.substitutes) ? row.substitutes.length : 0,
-    };
-  });
-
-  return { available: teams.length > 0, teams };
-}
-
 function normalizeComparableText(value: string | null | undefined): string {
   return String(value ?? '')
     .normalize('NFD')
@@ -2485,73 +2304,6 @@ function enforceFollowUpLineupAvailability(
     : currentVi
       ? `${unavailableVi} ${currentVi}`
       : unavailableVi;
-}
-
-// ==================== Build Stats Compact ====================
-
-function buildStatsCompact(
-  homeStats: Array<{ type: string; value: string | number | null }>,
-  awayStats: Array<{ type: string; value: string | number | null }>,
-): StatsCompact {
-  const getStat = (name: string) => parseTwoSide(
-    getStatValue(homeStats, name),
-    getStatValue(awayStats, name),
-  );
-  return {
-    possession: getStat('Ball Possession'),
-    shots: getStat('Total Shots'),
-    shots_on_target: getStat('Shots on Goal'),
-    corners: getStat('Corner Kicks'),
-    fouls: getStat('Fouls'),
-    offsides: getStat('Offsides'),
-    yellow_cards: getStat('Yellow Cards'),
-    red_cards: getStat('Red Cards'),
-    goalkeeper_saves: getStat('Goalkeeper Saves'),
-    blocked_shots: getStat('Blocked Shots'),
-    total_passes: getStat('Total passes'),
-    passes_accurate: getStat('Passes accurate'),
-    shots_off_target: getStat('Shots off Goal'),
-    shots_inside_box: getStat('Shots insidebox'),
-    shots_outside_box: getStat('Shots outsidebox'),
-    expected_goals: getStat('expected_goals'),
-    goals_prevented: getStat('goals_prevented'),
-    passes_percent: getStat('Passes %'),
-  };
-}
-
-// ==================== Build Events Compact ====================
-
-function buildEventsCompact(
-  events: ApiFixtureEvent[],
-  homeTeamId: number | undefined,
-  awayTeamId: number | undefined,
-  homeName: string,
-  awayName: string,
-): EventCompact[] {
-  const sorted = [...events].sort((a, b) => (a.time?.elapsed || 0) - (b.time?.elapsed || 0));
-  const compact: EventCompact[] = [];
-
-  for (const ev of sorted) {
-    const teamId = ev.team?.id;
-    const sideName = teamId === homeTeamId ? homeName : teamId === awayTeamId ? awayName : (ev.team?.name || '');
-    const type = ev.type || '';
-    const detail = ev.detail || '';
-    const minute = ev.time?.elapsed ?? 0;
-
-    if (type === 'Goal') {
-      compact.push({ minute, extra: ev.time?.extra ?? null, team: sideName, type: 'goal', detail, player: ev.player?.name || '' });
-    }
-    if (type === 'Card') {
-      compact.push({ minute, extra: ev.time?.extra ?? null, team: sideName, type: 'card', detail, player: ev.player?.name || '' });
-    }
-    if (type === 'subst') {
-      const playerIn = ev.assist?.name || '';
-      const playerOut = ev.player?.name || '';
-      compact.push({ minute, extra: ev.time?.extra ?? null, team: sideName, type: 'subst', detail: `${playerIn} for ${playerOut}`, player: playerIn });
-    }
-  }
-
-  return compact;
 }
 
 // ==================== Build Odds Canonical ====================
@@ -4119,21 +3871,26 @@ void buildTelegramMessage;
 
 async function processMatch(
   matchId: string,
-  fixture: ApiFixture,
+  providerFixturePayload: PipelineProviderFixturePayload,
   watchlistEntry: watchlistRepo.WatchlistRow,
   settings: PipelineSettings,
   options: PipelineExecutionOptions = {},
 ): Promise<MatchPipelineResult> {
-  const matchDisplay = `${fixture.teams?.home?.name || watchlistEntry.home_team} vs ${fixture.teams?.away?.name || watchlistEntry.away_team}`;
-  const homeName = fixture.teams?.home?.name || watchlistEntry.home_team;
-  const awayName = fixture.teams?.away?.name || watchlistEntry.away_team;
-  const league = fixture.league?.name || watchlistEntry.league;
-  const status = fixture.fixture?.status?.short || 'UNKNOWN';
-  const minute = fixture.fixture?.status?.elapsed ?? 0;
-  const homeGoals = fixture.goals?.home ?? 0;
-  const awayGoals = fixture.goals?.away ?? 0;
-  const score = `${homeGoals}-${awayGoals}`;
-  const htScoreLive = extractHalftimeScoreFromFixture(fixture);
+  const liveFixture = buildPipelineFixtureInput({
+    matchId,
+    fixture: providerFixturePayload,
+    watchlistFallback: watchlistEntry,
+  });
+  const matchDisplay = liveFixture.matchDisplay;
+  const homeName = liveFixture.home.name;
+  const awayName = liveFixture.away.name;
+  const league = liveFixture.league.name;
+  const status = liveFixture.status.short;
+  const minute = liveFixture.status.minute;
+  const homeGoals = liveFixture.score.home;
+  const awayGoals = liveFixture.score.away;
+  const score = liveFixture.score.text;
+  const htScoreLive = liveFixture.halftimeScore;
   const deps: PipelineDeps = { ...defaultPipelineDeps, ...options.dependencies };
   const shadowMode = options.shadowMode === true;
   const sampleProviderData = options.sampleProviderData !== false;
@@ -4143,8 +3900,8 @@ async function processMatch(
   const advisoryOnly = options.advisoryOnly === true;
 
   try {
-    const homeTeamId = fixture.teams?.home?.id;
-    const awayTeamId = fixture.teams?.away?.id;
+    const homeTeamId = liveFixture.home.id ?? undefined;
+    const awayTeamId = liveFixture.away.id ?? undefined;
     const isManualForce = options.forceAnalyze === true;
     const forceAnalyze = isManualForce;
     const analysisMode: PromptAnalysisMode = isManualForce
@@ -4228,7 +3985,7 @@ async function processMatch(
     // 1. Read stats + events via the provider insight cache boundary
     const statsStartedAt = Date.now();
     const insight = await deps.ensureMatchInsight(matchId, {
-      fixture,
+      fixture: providerFixturePayload,
       status,
       matchMinute: minute,
       refreshOdds: false,
@@ -4243,9 +4000,9 @@ async function processMatch(
 
     const homeStats = apiStatsRaw[0]?.statistics || [];
     const awayStats = apiStatsRaw[1]?.statistics || [];
-    const apiStatsCompact = buildStatsCompact(homeStats, awayStats);
-    const apiEventsCompact = buildEventsCompact(apiEventsRaw, homeTeamId, awayTeamId, homeName, awayName);
-    const apiCoverageFlags = summarizeStatsCoverage(apiStatsCompact, apiStatsRaw, apiEventsRaw, statsError, eventsError);
+    const apiStatsCompact = buildPipelineStatsCompact(homeStats, awayStats);
+    const apiEventsCompact = buildPipelineEventsCompact(apiEventsRaw, liveFixture);
+    const apiCoverageFlags = summarizePipelineStatsCoverage(apiStatsCompact, apiStatsRaw, apiEventsRaw, statsError, eventsError);
     const apiProceed = checkShouldProceedServer(
       status,
       minute,
@@ -4282,16 +4039,21 @@ async function processMatch(
       });
     }
 
-    const statsCompact = apiStatsCompact;
-    const eventsCompact = apiEventsCompact;
+    let statsCompact = apiStatsCompact;
+    let eventsCompact = apiEventsCompact;
     let derivedInsights = deriveInsightsFromEvents(eventsCompact, minute, homeName, awayName);
-    const proceed = apiProceed;
-    const statsSource: StatsSource = 'api-football';
-    const statsFallbackUsed = false;
-    const statsFallbackReason = '';
-    const providerHealth = buildProviderHealthSnapshot({
-      fixture,
-      status,
+    let proceed = apiProceed;
+    const statisticsProvider = insight.statistics.provider === 'sportmonks' ? 'sportmonks' : 'api-football';
+    const eventsProvider = insight.events.provider === 'sportmonks' ? 'sportmonks' : 'api-football';
+    let statsSource: StatsSource = statisticsProvider === 'sportmonks' && eventsProvider === 'sportmonks'
+      ? 'sportmonks'
+      : statisticsProvider === 'sportmonks' || eventsProvider === 'sportmonks'
+        ? 'api-football+sportmonks'
+        : 'api-football';
+    let statsFallbackUsed = statsSource !== 'api-football';
+    let statsFallbackReason = statsFallbackUsed ? `supplemented_by_${statsSource}` : '';
+    const providerHealth = buildPipelineProviderHealthSnapshot({
+      provider: 'api-football',
       minute,
       statsRaw: apiStatsRaw,
       statsAvailable: proceed.statsAvailable,
@@ -4301,6 +4063,12 @@ async function processMatch(
       eventsFreshness: insight.events.freshness,
     });
     const providerWarnings = providerHealth.warnings;
+    const providerFusionDebugMetadata: Record<string, unknown> = {
+      statisticsProvider,
+      eventsProvider,
+      statisticsCoverageFlags: insight.statistics.coverageFlags,
+      eventsCoverageFlags: insight.events.coverageFlags,
+    };
     const providerDebugMetadata = {
       providerHealth,
       providerWarnings,
@@ -4308,10 +4076,11 @@ async function processMatch(
       providerReturnedNoLiveStatistics: providerHealth.providerReturnedNoLiveStatistics,
       providerClockLagMinutes: providerHealth.providerClockLagMinutes,
       providerClockLagStatus: providerHealth.providerClockLagStatus,
+      providerFusion: providerFusionDebugMetadata,
     };
 
     // 2. Check should proceed before fetching odds / AI
-    const statsAvailable = proceed.statsAvailable;
+    let statsAvailable = proceed.statsAvailable;
     if (!proceed.shouldProceed && !forceAnalyze && options.skipProceedGate !== true) {
       if (!shadowMode && shouldSamplePipelineSkipAudit(proceed.reason, 'proceed', 20)) {
         audit({
@@ -4367,8 +4136,9 @@ async function processMatch(
     type OddsSideResult = {
       oddsCanonical: OddsCanonical;
       oddsAvailable: boolean;
-      oddsSource: string;
+      oddsSource: ResolvedOddsSource;
       oddsFetchedAt: string | null;
+      oddsResponse: unknown[];
       referenceOddsCanonical?: OddsCanonical;
       referenceOddsSource?: string;
       referenceOddsFetchedAt?: string | null;
@@ -4384,9 +4154,9 @@ async function processMatch(
         matchId,
         homeTeam: homeName,
         awayTeam: awayName,
-        kickoffTimestamp: fixture.fixture?.timestamp,
-        leagueName: fixture.league?.name,
-        leagueCountry: fixture.league?.country,
+        kickoffTimestamp: liveFixture.kickoff.timestamp ?? undefined,
+        leagueName: liveFixture.league.name,
+        leagueCountry: liveFixture.league.country ?? undefined,
         status,
         matchMinute: minute,
         consumer: shadowMode ? 'replay' : 'server-pipeline',
@@ -4453,6 +4223,7 @@ async function processMatch(
         oddsAvailable,
         oddsSource,
         oddsFetchedAt,
+        oddsResponse: resolvedOdds.response,
         referenceOddsCanonical: referenceOddsResult?.available ? referenceOddsResult.canonical : undefined,
         referenceOddsSource,
         referenceOddsFetchedAt,
@@ -4465,23 +4236,23 @@ async function processMatch(
       loadOddsSide(),
       Promise.all([
         loadHistoricalPromptContext(deps),
-        fixture.league?.id
-          ? deps.getLeagueProfileByLeagueId(fixture.league.id).catch(() => null)
+        liveFixture.league.id
+          ? deps.getLeagueProfileByLeagueId(liveFixture.league.id).catch(() => null)
           : Promise.resolve(null),
-        fixture.league?.id
-          ? deps.getLeagueById(fixture.league.id).catch(() => null)
+        liveFixture.league.id
+          ? deps.getLeagueById(liveFixture.league.id).catch(() => null)
           : Promise.resolve(null),
-        fixture.teams?.home?.id != null
-          ? deps.getTeamProfileByTeamId(String(fixture.teams.home.id)).catch(() => null)
+        liveFixture.home.id != null
+          ? deps.getTeamProfileByTeamId(String(liveFixture.home.id)).catch(() => null)
           : Promise.resolve(null),
-        fixture.teams?.away?.id != null
-          ? deps.getTeamProfileByTeamId(String(fixture.teams.away.id)).catch(() => null)
+        liveFixture.away.id != null
+          ? deps.getTeamProfileByTeamId(String(liveFixture.away.id)).catch(() => null)
           : Promise.resolve(null),
         needsLineupsSnapshot
           ? deps.ensureScoutInsight(matchId, {
-              fixture,
-              leagueId: fixture.league?.id,
-              season: fixture.league?.season,
+              fixture: providerFixturePayload,
+              leagueId: liveFixture.league.id ?? undefined,
+              season: liveFixture.league.season ?? undefined,
               status,
               consumer: 'server-pipeline-ask-ai',
               sampleProviderData: false,
@@ -4500,11 +4271,12 @@ async function processMatch(
       ]),
     ]);
 
-    const {
+    let {
       oddsCanonical,
       oddsAvailable,
       oddsSource,
       oddsFetchedAt,
+      oddsResponse,
       referenceOddsCanonical,
       referenceOddsSource,
       referenceOddsFetchedAt,
@@ -4531,11 +4303,240 @@ async function processMatch(
     const awayTeamProfile = prematchProfileMode === 'none' || prematchProfileMode === 'league-only'
       ? null
       : rawAwayTeamProfile;
-    const lineupsSnapshot = summarizeLineupsForPrompt(
-      (scoutInsight?.lineups?.payload as ApiFixtureLineup[] | null | undefined) ?? null,
-      homeName,
-      awayName,
+    const lineupsSnapshot = summarizePipelineLineupsForPrompt(
+      (scoutInsight?.lineups?.payload as PipelineProviderLineupRow[] | null | undefined) ?? null,
+      liveFixture,
     );
+
+    const shouldAuditProviderFusionShadow = shouldBuildProviderFusionShadow(config, { shadowMode });
+    const shouldPromoteProviderFusionStatsEvents = shouldEvaluateProviderFusionStatsEventsPromotion(config, { shadowMode });
+    const shouldAuditProviderFusionOddsShadow = shouldBuildProviderFusionOddsShadow(config, { shadowMode });
+    const shouldPromoteProviderFusionOdds = shouldEvaluateProviderFusionOddsPromotion(config, { shadowMode });
+    let providerFusionRead: ProviderFusionPipelineReadResult | null = null;
+    let providerFusionStatsEventsPromotionDecision: ProviderFusionStatsEventsPromotionDecision | null = null;
+    let providerFusionOddsPromotionDecision: ProviderFusionOddsPromotionDecision | null = null;
+    if (
+      shouldAuditProviderFusionShadow
+      || shouldPromoteProviderFusionStatsEvents
+      || shouldAuditProviderFusionOddsShadow
+      || shouldPromoteProviderFusionOdds
+    ) {
+      const providerFusionGeneratedAt = new Date().toISOString();
+      providerFusionRead = buildProviderFusionPipelineRead({
+        matchId,
+        fixture: liveFixture,
+        providerSources: buildPipelineProviderFusionSources({
+          matchId,
+          fixture: liveFixture,
+          statisticsRaw: apiStatsRaw,
+          eventsRaw: apiEventsRaw,
+          oddsResponse,
+          oddsSource,
+          oddsFetchedAt,
+          statisticsProvider,
+          eventsProvider,
+          statisticsProviderFixtureId: coverageFlagString(insight.statistics.coverageFlags, 'provider_fixture_id'),
+          eventsProviderFixtureId: coverageFlagString(insight.events.coverageFlags, 'provider_fixture_id'),
+          statisticsMappingConfidence: coverageFlagString(insight.statistics.coverageFlags, 'mapping_confidence'),
+          eventsMappingConfidence: coverageFlagString(insight.events.coverageFlags, 'mapping_confidence'),
+          generatedAt: providerFusionGeneratedAt,
+        }),
+        statsCompact: statsCompact as unknown as Record<string, unknown>,
+        eventsCompact: eventsCompact as unknown as Array<Record<string, unknown>>,
+        oddsCanonical: oddsCanonical as unknown as Record<string, unknown>,
+        oddsResponse,
+        oddsSource,
+        oddsFetchedAt,
+        statisticsProvider,
+        eventsProvider,
+        generatedAt: providerFusionGeneratedAt,
+        promotionEnabled: config.providerFusionPromotionEnabled || config.providerFusionOddsPromotion,
+      });
+    }
+
+    if (shouldPromoteProviderFusionStatsEvents) {
+      const statsEventsPromotion = decideProviderFusionStatsEventsPromotion({
+        enabled: shouldPromoteProviderFusionStatsEvents,
+        read: providerFusionRead,
+        homeName,
+        awayName,
+        apiFootballStatsPresent: statisticsProvider === 'api-football' && apiProceed.statsAvailable,
+        apiFootballEventsPresent: eventsProvider === 'api-football' && apiEventsCompact.length > 0,
+        oddsPromotionEnabled: config.providerFusionOddsPromotion,
+      });
+      providerFusionStatsEventsPromotionDecision = statsEventsPromotion;
+      providerFusionDebugMetadata['statsEventsPromotion'] = statsEventsPromotion.audit;
+      if (!shadowMode) {
+        audit({
+          category: 'PIPELINE',
+          action: 'PIPELINE_PROVIDER_FUSION_STATS_EVENTS_PROMOTION',
+          outcome: statsEventsPromotion.promoted ? 'SUCCESS' : 'SKIPPED',
+          actor: 'auto-pipeline',
+          match_id: matchId,
+          metadata: {
+            matchId,
+            matchDisplay,
+            minute,
+            score,
+            status,
+            oddsSource,
+            oddsAvailable,
+            beforeStatsSource: statsSource,
+            ...statsEventsPromotion.audit,
+          },
+        });
+      }
+
+      if (statsEventsPromotion.promoted) {
+        if (statsEventsPromotion.statsCompact) {
+          statsCompact = statsEventsPromotion.statsCompact;
+        }
+        if (statsEventsPromotion.eventsCompact) {
+          eventsCompact = statsEventsPromotion.eventsCompact;
+        }
+        derivedInsights = deriveInsightsFromEvents(eventsCompact, minute, homeName, awayName);
+        statsSource = statsEventsPromotion.statsSource ?? statsSource;
+        statsFallbackUsed = statsSource !== 'api-football';
+        statsFallbackReason = statsEventsPromotion.statsFallbackReason || statsFallbackReason;
+        proceed = checkShouldProceedServer(
+          status,
+          minute,
+          statsCompact,
+          {
+            minMinute: settings.minMinute,
+            maxMinute: settings.maxMinute,
+            secondHalfStartMinute: settings.secondHalfStartMinute,
+            liveStatuses: config.liveStatuses,
+          },
+          forceAnalyze,
+        );
+        statsAvailable = proceed.statsAvailable;
+        providerFusionDebugMetadata['activeStatsSource'] = statsSource;
+      }
+    }
+
+    if (shouldPromoteProviderFusionOdds) {
+      const oddsPromotion = decideProviderFusionOddsPromotion({
+        read: providerFusionRead,
+        matchId,
+        oddsSource,
+        oddsFetchedAt,
+        status,
+        minute,
+        score,
+        homeName,
+        awayName,
+        currentTotalGoals: homeGoals + awayGoals,
+        config: {
+          killSwitch: config.providerFusionKillSwitch === true,
+          providerAllowlist: config.providerFusionOddsProviderAllowlist,
+          rolloutPercent: config.providerFusionRolloutPercent,
+        },
+      });
+      providerFusionOddsPromotionDecision = oddsPromotion;
+      providerFusionDebugMetadata['oddsPromotion'] = oddsPromotion.audit;
+      audit({
+        category: 'PIPELINE',
+        action: 'PIPELINE_PROVIDER_FUSION_ODDS_PROMOTION',
+        outcome: oddsPromotion.promoted ? 'SUCCESS' : 'SKIPPED',
+        actor: 'auto-pipeline',
+        match_id: matchId,
+        metadata: {
+          matchId,
+          matchDisplay,
+          minute,
+          score,
+          status,
+          beforeOddsSource: oddsSource,
+          beforeOddsAvailable: oddsAvailable,
+          statsSource,
+          ...oddsPromotion.audit,
+        },
+      });
+
+      if (oddsPromotion.promoted) {
+        const sanitizedPromotedOdds = sanitizePromptOddsCanonical({
+          canonical: oddsPromotion.oddsCanonical as OddsCanonical,
+          homeGoals,
+          awayGoals,
+          currentTotalGoals: homeGoals + awayGoals,
+          currentTotalCorners: (() => {
+            const cornersHome = Number.parseInt(String(statsCompact.corners.home ?? ''), 10);
+            const cornersAway = Number.parseInt(String(statsCompact.corners.away ?? ''), 10);
+            return Number.isNaN(cornersHome) || Number.isNaN(cornersAway)
+              ? null
+              : cornersHome + cornersAway;
+          })(),
+          matchMinute: minute,
+          matchStatus: status,
+          htHomeGoals: htScoreLive?.home ?? null,
+          htAwayGoals: htScoreLive?.away ?? null,
+        });
+        oddsCanonical = sanitizedPromotedOdds.canonical;
+        oddsAvailable = sanitizedPromotedOdds.available;
+        oddsSource = 'live';
+        oddsFetchedAt = oddsPromotion.oddsFetchedAt ?? oddsFetchedAt;
+        oddsSanityWarnings = [...oddsSanityWarnings, ...sanitizedPromotedOdds.warnings];
+        oddsSuspicious = oddsSuspicious || sanitizedPromotedOdds.suspicious;
+        providerFusionDebugMetadata['activeOddsSource'] = oddsPromotion.provider;
+        providerFusionDebugMetadata['activeOddsProviderFixtureId'] = oddsPromotion.providerFixtureId;
+      }
+    }
+
+    if (shouldAuditProviderFusionOddsShadow) {
+      const oddsShadow = buildProviderFusionOddsShadow({
+        read: providerFusionRead,
+        matchId,
+        oddsSource,
+        oddsFetchedAt,
+        status,
+        minute,
+        score,
+      });
+      providerFusionDebugMetadata['oddsShadow'] = oddsShadow.audit;
+      audit({
+        category: 'PIPELINE',
+        action: 'PIPELINE_PROVIDER_FUSION_ODDS_SHADOW',
+        outcome: oddsShadow.hardBlockReasons.length === 0 ? 'SUCCESS' : 'SKIPPED',
+        actor: 'auto-pipeline',
+        match_id: matchId,
+        metadata: {
+          matchId,
+          matchDisplay,
+          minute,
+          score,
+          status,
+          oddsSource,
+          oddsAvailable,
+          statsSource,
+          ...oddsShadow.audit,
+        },
+      });
+    }
+
+    if (providerFusionRead && shouldAuditProviderFusionShadow) {
+      audit({
+        category: 'PIPELINE',
+        action: 'PIPELINE_PROVIDER_FUSION_SHADOW_DIFF',
+        outcome: providerFusionRead.diff.promptEquivalent ? 'SUCCESS' : 'DIFF',
+        actor: 'auto-pipeline',
+        match_id: matchId,
+        metadata: {
+          matchId,
+          matchDisplay,
+          minute,
+          score,
+          status,
+          statsSource,
+          oddsSource,
+          oddsAvailable,
+          promotionEnabled: config.providerFusionPromotionEnabled || config.providerFusionOddsPromotion,
+          statsEventsPromotionEnabled: config.providerFusionStatsEventsPromotion,
+          oddsPromotionEnabled: config.providerFusionOddsPromotion,
+          ...providerFusionRead.audit,
+        },
+      });
+    }
 
     // Persist latest state for the next run's staleness gate; do not block LLM on DB write.
     if (!shadowMode) {
@@ -4696,8 +4697,8 @@ async function processMatch(
       strategicContextOnDemandAttempted = true;
       const attemptedAt = new Date().toISOString();
       try {
-        const matchDateForResearch = fixture.fixture.date
-          || (fixture.fixture.timestamp ? new Date(fixture.fixture.timestamp * 1000).toISOString() : null);
+        const matchDateForResearch = liveFixture.kickoff.iso
+          || (liveFixture.kickoff.timestamp ? new Date(liveFixture.kickoff.timestamp * 1000).toISOString() : null);
         const fetchedStrategicContext = await fetchStrategicContext(
           homeName,
           awayName,
@@ -5644,7 +5645,7 @@ async function processMatch(
     });
     const runtimeShadowSegments = buildRuntimeShadowSegmentMetadata({
       matchId,
-      leagueId: fixture.league?.id,
+      leagueId: liveFixture.league.id ?? undefined,
       leagueName: league,
       homeTeamId,
       homeTeamName: homeName,
@@ -5859,6 +5860,44 @@ async function processMatch(
     let saveProviderCoverageStatus: RecommendationSaveIntegrityResult['providerCoverageStatus'] | undefined;
     let analysisSignalDeliveriesLoaded = false;
 
+    if (
+      shouldSave
+      && !shadowMode
+      && providerFusionOddsPromotionDecision?.blocksRecommendationSave
+    ) {
+      saveIntegrityStatus = 'blocked';
+      saveBlockedReason = `provider_fusion_odds_${providerFusionOddsPromotionDecision.reason}`;
+      parsed.warnings = [...parsed.warnings, 'PROVIDER_FUSION_ODDS_SAVE_BLOCKED'];
+      parsed.ai_warnings = [...parsed.ai_warnings, 'PROVIDER_FUSION_ODDS_SAVE_BLOCKED'];
+      parsed.should_push = false;
+      parsed.system_should_bet = false;
+      parsed.final_should_bet = false;
+      parsed.decision_kind = 'no_bet';
+      parsed.llm_decision_diagnostic = 'policy_blocked';
+      shouldSave = false;
+      shouldNotify = false;
+      audit({
+        category: 'PIPELINE',
+        action: 'RECOMMENDATION_SAVE_BLOCKED_PROVIDER_FUSION_ODDS',
+        outcome: 'SKIPPED',
+        actor: 'auto-pipeline',
+        match_id: matchId,
+        metadata: {
+          matchId,
+          matchDisplay,
+          selection: parsed.selection,
+          betMarket: parsed.bet_market,
+          oddsSource,
+          oddsAvailable,
+          saveBlockedReason,
+          providerFusionOddsPromotion: providerFusionOddsPromotionDecision.audit,
+          promptVersion: activePromptVersion,
+          llmDecisionDiagnostic: parsed.llm_decision_diagnostic,
+          ...providerDebugMetadata,
+        },
+      });
+    }
+
     const stageVisibleAnalysisSignal = async () => {
       if (
         analysisSignalDeliveriesLoaded
@@ -5959,6 +5998,12 @@ async function processMatch(
         : runtimePolicyPromotion.promoted
           ? 'runtime_policy_promotion'
         : 'ai_primary';
+      if (providerFusionOddsPromotionDecision) {
+        decisionContext['providerFusionOddsPromotion'] = providerFusionOddsPromotionDecision.audit;
+      }
+      if (providerFusionStatsEventsPromotionDecision) {
+        decisionContext['providerFusionStatsEventsPromotion'] = providerFusionStatsEventsPromotionDecision.audit;
+      }
       if (runtimePolicyPromotion.promoted) {
         decisionContext['runtimePolicyPromotion'] = runtimePolicyPromotion as unknown as Record<string, unknown>;
         decisionContext['runtimePolicyShadow'] = runtimePolicyShadow as unknown as Record<string, unknown>;
@@ -6152,6 +6197,9 @@ async function processMatch(
                 tag: `tfi-rec-${matchId}`,
                 url: pushNavigateUrl,
                 icon: '/icons/notification-recommendation.svg',
+                critical: true,
+                requireInteraction: true,
+                duration: null,
                 actions: [{ action: 'invest', title: 'Invest' }],
               },
             );
@@ -6381,7 +6429,7 @@ async function processMatch(
 
 export async function runPipelineForFixture(
   matchId: string,
-  fixture: ApiFixture,
+  fixture: PipelineProviderFixturePayload,
   watchlistEntry: watchlistRepo.WatchlistRow,
   options: PipelineExecutionOptions = {},
 ): Promise<MatchPipelineResult> {

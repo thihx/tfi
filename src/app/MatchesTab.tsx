@@ -1550,6 +1550,7 @@ export function MatchesTab() {
             <tr>
               <th className="data-table__th--sortable" onClick={() => handleSort('time')}>Time {sortIndicator('time')}</th>
               <th className="data-table__th--sortable data-table__th--center" onClick={() => handleSort('league')}>League {sortIndicator('league')}</th>
+              <th className="data-table__th--center live-col">Live</th>
               <th className="data-table__th--sortable data-table__th--center" onClick={() => handleSort('status')} title="Sort by match status">
                 Match {sortIndicator('status')}
               </th>
@@ -1561,7 +1562,7 @@ export function MatchesTab() {
           </thead>
           <tbody>
             {pageItems.length === 0 ? (
-              <tr><td colSpan={5}>
+              <tr><td colSpan={6}>
                 <EmptyState
                   title="No matches found"
                   action={<button type="button" className="btn btn-secondary" onClick={clearFilters}>Clear Filters</button>}
@@ -1575,7 +1576,7 @@ export function MatchesTab() {
                 const label = getDateGroupLabelInTimeZone(getMatchKickoffTime(m), effectiveTimeZone);
                 if (label !== lastLabel) {
                   lastLabel = label;
-                  rows.push(<tr key={`grp-${label}`} className="date-group-row"><td colSpan={5}>{label}</td></tr>);
+                  rows.push(<tr key={`grp-${label}`} className="date-group-row"><td colSpan={6}>{label}</td></tr>);
                 }
                 rows.push(
                   <MatchRow
@@ -1986,11 +1987,17 @@ function MatchRow({ anchorId, match, isWatched, isPending, isPendingRemove, hasM
         </div>
       </td>
       <td data-label="League" style={{ textAlign: 'center' }}><div className="cell-value"><span style={{ fontWeight: 400 }}>{leagueDisplay}</span></div></td>
+      <td
+        data-label="Live"
+        className={`live-col${liveStreamActionLinks.length === 0 ? ' live-col--empty' : ''}`}
+        style={{ textAlign: 'center' }}
+      >
+        <div className="cell-value">
+          <MatchLiveStreamControls links={liveStreamActionLinks} onOpen={onOpenLiveStream} />
+        </div>
+      </td>
       <td data-label="Match" style={{ textAlign: 'center' }}>
         <div className="cell-value match-cell">
-          <div className="match-cell__layout">
-            <MatchLiveStreamControls links={liveStreamActionLinks} onOpen={onOpenLiveStream} />
-            <div className="match-cell__body">
           <div className="match-teams">
             <div className="team-info">
               <img src={match.home_logo} loading="lazy" decoding="async" alt={match.home_team} className="team-logo" onError={(e) => { (e.target as HTMLImageElement).src = PLACEHOLDER_HOME; }} />
@@ -2035,8 +2042,6 @@ function MatchRow({ anchorId, match, isWatched, isPending, isPendingRemove, hasM
                 {match.status !== 'HT' ? <StatusBadge status={match.status} /> : null}
               </>
             ) : null}
-          </div>
-            </div>
           </div>
         </div>
       </td>

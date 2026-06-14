@@ -1,6 +1,13 @@
 import { query } from '../db/pool.js';
 
-export type NotificationChannelType = 'telegram' | 'zalo' | 'web_push' | 'email';
+export type NotificationChannelType =
+  | 'telegram'
+  | 'zalo'
+  | 'web_push'
+  | 'native_push'
+  | 'email'
+  | 'sms'
+  | 'voice_call';
 export type NotificationChannelStatus = 'draft' | 'pending' | 'verified' | 'disabled';
 
 export interface UserNotificationChannelConfig {
@@ -40,7 +47,10 @@ export const SUPPORTED_NOTIFICATION_CHANNELS: NotificationChannelType[] = [
   'telegram',
   'zalo',
   'web_push',
+  'native_push',
   'email',
+  'sms',
+  'voice_call',
 ];
 
 function normalizeJsonObject(value: unknown): Record<string, unknown> {
@@ -57,8 +67,19 @@ function defaultMetadata(channelType: NotificationChannelType): Record<string, u
       return { setupState: 'reserved', senderImplemented: false };
     case 'web_push':
       return { setupState: 'requires_browser_subscription', senderImplemented: true };
+    case 'native_push':
+      return {
+        setupState: 'requires_native_device_registration',
+        senderImplemented: false,
+        supportsLocalNotifications: true,
+        provider: 'fcm_or_apns',
+      };
     case 'email':
       return { setupState: 'reserved', senderImplemented: false };
+    case 'sms':
+      return { setupState: 'requires_twilio_and_verified_phone', senderImplemented: true, criticalFallback: true };
+    case 'voice_call':
+      return { setupState: 'requires_twilio_and_verified_phone', senderImplemented: true, criticalFallback: true };
   }
 }
 

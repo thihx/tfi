@@ -114,3 +114,48 @@ export async function persistNotificationChannel(
   }
   return res.json() as Promise<NotificationChannelConfig>;
 }
+
+export async function startPhoneVerification(
+  channelType: Extract<NotificationChannelType, 'sms' | 'voice_call'>,
+  address: string,
+): Promise<{ sent: boolean; expiresAt: string }> {
+  const res = await fetch(internalApiUrl(`/api/me/notification-channels/${channelType}/phone-verification/start`), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...authHeaders() },
+    body: JSON.stringify({ address }),
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    try {
+      const body = (await res.json()) as { error?: string; code?: string };
+      throwChannelRequestError(`Start phone verification failed: ${res.status}`, body);
+    } catch (e) {
+      if (e instanceof NotificationChannelRequestError) throw e;
+      throw new NotificationChannelRequestError(`Start phone verification failed: ${res.status}`);
+    }
+  }
+  return res.json() as Promise<{ sent: boolean; expiresAt: string }>;
+}
+
+export async function verifyPhoneChannel(
+  channelType: Extract<NotificationChannelType, 'sms' | 'voice_call'>,
+  address: string,
+  code: string,
+): Promise<NotificationChannelConfig> {
+  const res = await fetch(internalApiUrl(`/api/me/notification-channels/${channelType}/phone-verification/verify`), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...authHeaders() },
+    body: JSON.stringify({ address, code }),
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    try {
+      const body = (await res.json()) as { error?: string; code?: string };
+      throwChannelRequestError(`Verify phone failed: ${res.status}`, body);
+    } catch (e) {
+      if (e instanceof NotificationChannelRequestError) throw e;
+      throw new NotificationChannelRequestError(`Verify phone failed: ${res.status}`);
+    }
+  }
+  return res.json() as Promise<NotificationChannelConfig>;
+}

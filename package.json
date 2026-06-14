@@ -18,6 +18,11 @@
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
+    "cap:sync": "npm run build && cap sync",
+    "cap:open:android": "cap open android",
+    "cap:open:ios": "cap open ios",
+    "cap:run:android": "npm run build && cap run android",
+    "cap:run:ios": "npm run build && cap run ios",
     "typecheck": "tsc --noEmit",
     "verify:ci": "npm run typecheck --prefix packages/server && npm run test --prefix packages/server && npm run data-driven:verify-gates-ci --prefix packages/server && npm run typecheck && npm run test",
     "lint": "eslint src/",
@@ -26,11 +31,21 @@
     "deploy:azure": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/azure/deploy.ps1"
   },
   "dependencies": {
+    "@capacitor-firebase/messaging": "^8.3.0",
+    "@capacitor/app": "^8.1.0",
+    "@capacitor/core": "^8.4.0",
+    "@capacitor/device": "^8.0.2",
+    "@capacitor/local-notifications": "^8.2.0",
+    "@capacitor/push-notifications": "^8.1.1",
+    "firebase": "^12.14.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "recharts": "^3.8.0"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.4.0",
+    "@capacitor/cli": "^8.4.0",
+    "@capacitor/ios": "^8.4.0",
     "@eslint/js": "^9.39.4",
     "@playwright/test": "^1.58.2",
     "@testing-library/dom": "^10.4.1",

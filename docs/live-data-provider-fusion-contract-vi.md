@@ -1,8 +1,10 @@
 # Live Data Provider Fusion Contract
 
-**Status:** Phase A implemented; multi-provider fusion still draft
-**Updated:** 2026-06-09
+**Status:** Provider fusion implemented through Phase 9 controlled odds promotion behind flags; `multi-provider-architecture-contract-vi.md` is the implementation source of truth
+**Updated:** 2026-06-14
 **Scope:** thiet ke lop hop nhat nhieu provider cho live score/events/stats/odds truoc khi dua vao live recommendation pipeline.
+
+Implementation contract: [multi-provider-architecture-contract-vi.md](multi-provider-architecture-contract-vi.md) is the source of truth for provider-agnostic canonical models, adapter rules, phase gates, coverage thresholds, and rollback requirements.
 
 ## Ly Do
 
@@ -291,15 +293,22 @@ Status: implemented for the current API-Football-only runtime.
 
 ### Phase C: Backup Provider POC
 
-- Add one backup provider in shadow/read-only mode.
-- Compare score/minute/events/stats/odds without changing money decisions.
-- Emit provider comparison reports.
+Status: partially implemented for Sportmonks.
+
+- Sportmonks client, normalizer, request ledger, fixture mapping table, sample tables, and operator POC script exist.
+- Default runtime remains off unless `SPORTMONKS_ENABLED=true`.
+- POC script compares livescores/date/fixture payload coverage and can persist samples.
+- Odds/xG/predictions are not enabled because Sportmonks confirms those require All-in entitlement.
 
 ### Phase D: Fusion Canonicalization
 
-- Select canonical field by freshness/coverage/reliability rules.
-- Record field provenance in audit.
-- Keep money guard conservative on conflicts.
+Status: partially implemented for stats/events fallback only.
+
+- API-Football remains default for fixture identity, score, minute, and odds.
+- Sportmonks may supplement statistics/events only when API-Football detail payloads are empty/missing and the fallback flags are enabled.
+- Score conflict hard-blocks Sportmonks supplement.
+- Field provenance is recorded in cache `coverage_flags` and pipeline `providerFusion` metadata.
+- Money guard remains conservative: Sportmonks stats/events do not bypass odds, market normalization, evidence, policy, dedupe, or save-integrity gates.
 
 ### Phase E: Production Promotion
 

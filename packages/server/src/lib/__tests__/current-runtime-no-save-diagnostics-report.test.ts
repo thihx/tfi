@@ -159,6 +159,11 @@ describe('current runtime no-save diagnostics report', () => {
       shadowCandidatePresent: 7,
       shadowCandidateResolved: 4,
     });
+    const telemetrySql = String(mockQuery.mock.calls[5]?.[0] ?? '');
+    expect(telemetrySql).toContain("metadata ? 'shadowCandidatePresent'");
+    expect(telemetrySql).toContain("shadowCandidateReasonCode', ''), '') NOT IN ('not_provided', 'parse_error')");
+    const shadowReasonSql = String(mockQuery.mock.calls[6]?.[0] ?? '');
+    expect(shadowReasonSql).not.toContain("metadata->>'shadowCandidatePresent' = 'true'");
     expect(report.shadowCandidateReasonCodes[0]).toEqual({
       key: 'thin_edge',
       count: 4,

@@ -1,10 +1,14 @@
 import { query } from '../db/pool.js';
 import { deleteSubscription, getSubscriptionsByUserId } from './push-subscriptions.repo.js';
+import { deleteNativePushDeviceByToken, getNativePushDevicesByUserId } from './native-push-devices.repo.js';
 import type { MatchAlertEvaluationResult } from '../lib/match-alert-rule-engine.js';
 import type { MatchAlertRule } from './match-alert-rules.repo.js';
 import type { MatchAlertContext } from '../lib/match-alert-rule-engine.js';
 import { isWebPushConfigured, sendWebPushNotification, type PushPayload } from '../lib/web-push.js';
+import { sendFcmNotification } from '../lib/native-push.js';
+import { sendSmsNotification, sendVoiceNotification } from '../lib/twilio.js';
 import type { StatsOnlyLiveSignalResult } from '../lib/stats-only-live-signal.js';
+import { evaluateCriticalFallbackPolicy } from '../lib/critical-fallback-policy.js';
 
 export interface MatchAlertDelivery {
   id: number;
@@ -41,6 +45,13 @@ interface PendingWebPushRow {
   trigger_key: string;
   trigger_snapshot: Record<string, unknown> | null;
   metadata: Record<string, unknown> | null;
+}
+
+interface PendingNativePushRow extends PendingWebPushRow {}
+
+interface PendingFallbackRow extends PendingWebPushRow {
+  address: string;
+  channel_type: 'sms' | 'voice_call';
 }
 
 export interface PendingTelegramMatchAlertRow {
@@ -109,7 +120,10 @@ function mapDelivery(row: MatchAlertDeliveryRow): MatchAlertDelivery {
   };
 }
 
-function channelPolicyAllows(policy: Record<string, unknown>, channel: 'web_push' | 'telegram'): boolean {
+function channelPolicyAllows(
+  policy: Record<string, unknown>,
+  channel: 'web_push' | 'native_push' | 'telegram' | 'sms' | 'voice_call',
+): boolean {
   const value = policy[channel];
   return value !== false;
 }
@@ -172,9 +186,32 @@ async function syncDeliveryChannels(deliveryIds: number[]): Promise<void> {
         WHERE NOT EXISTS (
           SELECT 1
             FROM user_notification_channel_configs wp
-           WHERE wp.user_id = td.user_id
+          WHERE wp.user_id = td.user_id
              AND wp.channel_type = 'web_push'
              AND (wp.enabled = FALSE OR wp.status = 'disabled')
+        )
+        UNION ALL
+        SELECT
+          td.id AS delivery_id,
+          'native_push'::text AS channel_type,
+          CASE
+            WHEN td.delivery_status <> 'pending' THEN 'suppressed'
+            WHEN COALESCE((td.channel_policy->>'native_push')::boolean, TRUE) = FALSE THEN 'suppressed'
+            ELSE 'pending'
+          END AS status
+        FROM target_deliveries td
+        JOIN LATERAL (
+          SELECT 1
+            FROM native_push_devices npd
+           WHERE npd.user_id = td.user_id
+           LIMIT 1
+        ) active_native ON TRUE
+        WHERE NOT EXISTS (
+          SELECT 1
+            FROM user_notification_channel_configs np
+           WHERE np.user_id = td.user_id
+             AND np.channel_type = 'native_push'
+             AND (np.enabled = FALSE OR np.status = 'disabled')
         )
         UNION ALL
         SELECT
@@ -193,6 +230,29 @@ async function syncDeliveryChannels(deliveryIds: number[]): Promise<void> {
          AND tg.status <> 'disabled'
          AND tg.address IS NOT NULL
          AND BTRIM(tg.address) <> ''
+        UNION ALL
+        SELECT
+          td.id AS delivery_id,
+          fallback.channel_type,
+          CASE
+            WHEN td.delivery_status <> 'pending' THEN 'suppressed'
+            ELSE 'pending'
+          END AS status
+        FROM target_deliveries td
+        JOIN user_notification_channel_configs cfg
+          ON cfg.user_id = td.user_id
+         AND cfg.channel_type IN ('sms', 'voice_call')
+         AND cfg.enabled = TRUE
+         AND cfg.status <> 'disabled'
+         AND cfg.address IS NOT NULL
+         AND BTRIM(cfg.address) <> ''
+        CROSS JOIN LATERAL (
+          SELECT cfg.channel_type::text AS channel_type
+        ) fallback
+        WHERE (
+          (cfg.channel_type = 'sms' AND COALESCE((td.channel_policy->>'sms')::boolean, TRUE) <> FALSE)
+          OR (cfg.channel_type = 'voice_call' AND COALESCE((td.channel_policy->>'voice_call')::boolean, TRUE) <> FALSE)
+        )
       )
       INSERT INTO user_match_alert_delivery_channels (
         delivery_id,
@@ -202,12 +262,27 @@ async function syncDeliveryChannels(deliveryIds: number[]): Promise<void> {
         created_at,
         updated_at
       )
-      SELECT delivery_id, channel_type, status, '{}'::jsonb, NOW(), NOW()
+      SELECT
+        delivery_id,
+        channel_type,
+        status,
+        CASE
+          WHEN channel_type IN ('native_push', 'sms', 'voice_call') AND status = 'suppressed'
+            THEN jsonb_build_object('reason', 'delivery_suppressed')
+          ELSE '{}'::jsonb
+        END,
+        NOW(),
+        NOW()
         FROM desired_channels
       ON CONFLICT (delivery_id, channel_type) DO UPDATE
         SET status = CASE
               WHEN user_match_alert_delivery_channels.status = 'delivered' THEN 'delivered'
               ELSE EXCLUDED.status
+            END,
+            metadata = CASE
+              WHEN EXCLUDED.channel_type IN ('native_push', 'sms', 'voice_call') AND EXCLUDED.status = 'suppressed'
+                THEN user_match_alert_delivery_channels.metadata || jsonb_build_object('reason', 'delivery_suppressed')
+              ELSE user_match_alert_delivery_channels.metadata
             END,
             updated_at = NOW()`,
     [deliveryIds],
@@ -262,7 +337,10 @@ export async function enqueueMatchAlertDelivery(
   const policy = rule.channelPolicy;
   const effectivePolicy = {
     web_push: channelPolicyAllows(policy, 'web_push'),
+    native_push: channelPolicyAllows(policy, 'native_push'),
     telegram: channelPolicyAllows(policy, 'telegram'),
+    sms: channelPolicyAllows(policy, 'sms'),
+    voice_call: channelPolicyAllows(policy, 'voice_call'),
   };
 
   const result = await query<MatchAlertDeliveryRow>(
@@ -527,7 +605,11 @@ function buildPushPayload(row: PendingWebPushRow): PushPayload {
     tag,
     url: buildAlertUrl(row.match_id, metadata),
     icon: '/icons/notification-condition.svg',
+    critical: true,
+    requireInteraction: true,
+    duration: null,
     data: {
+      channelType: 'native_push',
       matchId: row.match_id,
       alertKind: row.alert_kind,
       deliveryId: row.delivery_id,
@@ -554,6 +636,62 @@ export async function getPendingWebPushMatchAlertDeliveries(limit = 50): Promise
       ORDER BY d.created_at ASC, d.id ASC
       LIMIT $1`,
     [limit],
+  );
+  return result.rows;
+}
+
+export async function getPendingNativePushMatchAlertDeliveries(limit = 50): Promise<PendingNativePushRow[]> {
+  const result = await query<PendingNativePushRow>(
+    `SELECT
+        c.id AS channel_id,
+        d.id AS delivery_id,
+        d.user_id::text AS user_id,
+        d.match_id,
+        d.alert_kind,
+        d.trigger_key,
+        d.trigger_snapshot,
+        d.metadata
+       FROM user_match_alert_delivery_channels c
+       JOIN user_match_alert_deliveries d ON d.id = c.delivery_id
+      WHERE c.channel_type = 'native_push'
+        AND c.status = 'pending'
+      ORDER BY d.created_at ASC, d.id ASC
+      LIMIT $1`,
+    [limit],
+  );
+  return result.rows;
+}
+
+export async function getPendingFallbackMatchAlertDeliveries(
+  channelType: 'sms' | 'voice_call',
+  limit = 20,
+): Promise<PendingFallbackRow[]> {
+  const result = await query<PendingFallbackRow>(
+    `SELECT
+        c.id AS channel_id,
+        d.id AS delivery_id,
+        d.user_id::text AS user_id,
+        d.match_id,
+        d.alert_kind,
+        d.trigger_key,
+        d.trigger_snapshot,
+        d.metadata,
+        cfg.address,
+        c.channel_type::text AS channel_type
+       FROM user_match_alert_delivery_channels c
+       JOIN user_match_alert_deliveries d ON d.id = c.delivery_id
+       JOIN user_notification_channel_configs cfg
+         ON cfg.user_id = d.user_id
+        AND cfg.channel_type = c.channel_type
+        AND cfg.enabled = TRUE
+        AND cfg.status <> 'disabled'
+        AND cfg.address IS NOT NULL
+        AND BTRIM(cfg.address) <> ''
+      WHERE c.channel_type = $1
+        AND c.status = 'pending'
+      ORDER BY d.created_at ASC, d.id ASC
+      LIMIT $2`,
+    [channelType, limit],
   );
   return result.rows;
 }
@@ -637,6 +775,22 @@ export async function markMatchAlertChannelFailed(channelId: number, error: stri
   await recomputeParentDelivery(result.rows.map((row) => Number(row.delivery_id)));
 }
 
+export async function markMatchAlertChannelSuppressed(channelId: number, reason: string): Promise<void> {
+  const result = await query<{ delivery_id: number }>(
+    `UPDATE user_match_alert_delivery_channels
+        SET status = 'suppressed',
+            last_attempt_at = NOW(),
+            last_error = $2,
+            metadata = metadata || jsonb_build_object('reason', $2),
+            updated_at = NOW()
+      WHERE id = $1
+        AND status <> 'delivered'
+      RETURNING delivery_id`,
+    [channelId, reason.slice(0, 1000)],
+  );
+  await recomputeParentDelivery(result.rows.map((row) => Number(row.delivery_id)));
+}
+
 export async function deliverPendingWebPushMatchAlerts(limit = 50): Promise<{ pending: number; delivered: number; failed: number }> {
   const pending = await getPendingWebPushMatchAlertDeliveries(limit);
   if (pending.length === 0) return { pending: 0, delivered: 0, failed: 0 };
@@ -683,6 +837,102 @@ export async function deliverPendingWebPushMatchAlerts(limit = 50): Promise<{ pe
       delivered += 1;
     } else {
       await markMatchAlertChannelFailed(row.channel_id, lastError || 'Web Push delivery failed');
+      failed += 1;
+    }
+  }
+
+  return { pending: pending.length, delivered, failed };
+}
+
+function buildFallbackText(row: PendingWebPushRow): string {
+  const metadata = jsonObject(row.metadata);
+  const snapshot = jsonObject(row.trigger_snapshot);
+  const kind = row.alert_kind === 'match_start' ? 'MATCH STARTED' : 'LIVE SIGNAL';
+  const matchDisplay = asString(metadata.matchDisplay) || row.match_id;
+  const summary = asString(snapshot.summaryVi) || asString(snapshot.summaryEn) || 'Match alert matched.';
+  const score = asString(metadata.score);
+  const minute = metadata.minute == null ? '' : String(metadata.minute);
+  const meta = [minute ? `${minute}'` : '', score].filter(Boolean).join(' | ');
+  return [kind, matchDisplay, meta, summary].filter(Boolean).join('\n');
+}
+
+export async function deliverPendingNativePushMatchAlerts(limit = 50): Promise<{ pending: number; delivered: number; failed: number }> {
+  const pending = await getPendingNativePushMatchAlertDeliveries(limit);
+  if (pending.length === 0) return { pending: 0, delivered: 0, failed: 0 };
+
+  let delivered = 0;
+  let failed = 0;
+  for (const row of pending) {
+    const devices = await getNativePushDevicesByUserId(row.user_id);
+    const fcmDevices = devices.filter((device) => device.provider === 'fcm');
+    if (fcmDevices.length === 0) {
+      await markMatchAlertChannelFailed(row.channel_id, 'No FCM native push device registered');
+      failed += 1;
+      continue;
+    }
+
+    const metadata = jsonObject(row.metadata);
+    const payload = buildPushPayload(row);
+    let deliveredToAny = false;
+    let lastError = '';
+    for (const device of fcmDevices) {
+      const result = await sendFcmNotification(device.token, {
+        title: payload.title,
+        body: payload.body,
+        data: {
+          ...(payload.data ?? {}),
+          url: payload.url,
+          matchDisplay: asString(metadata.matchDisplay),
+        },
+      });
+      if (result.ok) {
+        deliveredToAny = true;
+      } else {
+        lastError = result.error;
+        if (result.gone) {
+          await deleteNativePushDeviceByToken(device.provider, device.token).catch(() => undefined);
+        }
+      }
+    }
+
+    if (deliveredToAny) {
+      await markMatchAlertChannelDelivered(row.channel_id);
+      delivered += 1;
+    } else {
+      await markMatchAlertChannelFailed(row.channel_id, lastError || 'Native push delivery failed');
+      failed += 1;
+    }
+  }
+
+  return { pending: pending.length, delivered, failed };
+}
+
+export async function deliverPendingFallbackMatchAlerts(
+  channelType: 'sms' | 'voice_call',
+  limit = 20,
+): Promise<{ pending: number; delivered: number; failed: number }> {
+  const pending = await getPendingFallbackMatchAlertDeliveries(channelType, limit);
+  if (pending.length === 0) return { pending: 0, delivered: 0, failed: 0 };
+
+  let delivered = 0;
+  let failed = 0;
+  for (const row of pending) {
+    const policy = await evaluateCriticalFallbackPolicy(channelType, row.user_id, row.address);
+    if (!policy.allowed) {
+      await markMatchAlertChannelSuppressed(row.channel_id, policy.reason || 'Critical fallback policy blocked delivery');
+      failed += 1;
+      continue;
+    }
+
+    const message = buildFallbackText(row);
+    const result = channelType === 'sms'
+      ? await sendSmsNotification(row.address, message)
+      : await sendVoiceNotification(row.address, message);
+    if (result.ok) {
+      await markMatchAlertChannelDelivered(row.channel_id);
+      delivered += 1;
+    } else {
+      await markMatchAlertChannelFailed(row.channel_id, result.error);
       failed += 1;
     }
   }

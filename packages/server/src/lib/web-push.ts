@@ -40,6 +40,11 @@ export interface PushPayload {
   actions?: Array<{ action: string; title: string; icon?: string }>;
   /** Absolute or site-root path (e.g. /icons/....svg); shown as notification icon where supported */
   icon?: string;
+  /** Critical alerts stay visible until user interaction where supported by the browser/OS. */
+  critical?: boolean;
+  requireInteraction?: boolean;
+  /** Milliseconds before auto-close; null or <= 0 means do not auto-close. */
+  duration?: number | null;
   data?: Record<string, unknown>;
 }
 

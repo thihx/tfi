@@ -119,6 +119,11 @@ function normalizeWatchlistItem(item: WatchlistItem): WatchlistItem {
   return normalizedId ? { ...item, id: normalizedId } : item;
 }
 
+function notifyMatchAlertScheduleChanged(): void {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent('tfi:matchAlertScheduleChanged'));
+}
+
 // ==================== PUBLIC API ====================
 
 export async function fetchMatches(config: AppConfig): Promise<Match[]> {
@@ -325,7 +330,9 @@ export async function persistMatchAlertSettings(
   config: AppConfig | string,
   patch: Partial<UserMatchAlertSettings>,
 ): Promise<UserMatchAlertSettings> {
-  return pgPut<UserMatchAlertSettings>(config, '/api/me/match-alert-settings', patch);
+  const saved = await pgPut<UserMatchAlertSettings>(config, '/api/me/match-alert-settings', patch);
+  notifyMatchAlertScheduleChanged();
+  return saved;
 }
 
 export async function fetchMatchAlertRules(
@@ -354,11 +361,15 @@ export async function createMatchAlertRule(
     metadata?: Record<string, unknown>;
   },
 ): Promise<MatchAlertRule> {
-  return pgPost<MatchAlertRule>(config, '/api/me/match-alert-rules', payload);
+  const rule = await pgPost<MatchAlertRule>(config, '/api/me/match-alert-rules', payload);
+  notifyMatchAlertScheduleChanged();
+  return rule;
 }
 
 export async function deleteMatchAlertRule(config: AppConfig | string, ruleId: number): Promise<{ deleted: boolean }> {
-  return pgDelete<{ deleted: boolean }>(config, `/api/me/match-alert-rules/${ruleId}`);
+  const result = await pgDelete<{ deleted: boolean }>(config, `/api/me/match-alert-rules/${ruleId}`);
+  if (result.deleted) notifyMatchAlertScheduleChanged();
+  return result;
 }
 
 export async function evaluateMatchAlertRulePreview(

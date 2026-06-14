@@ -1,0 +1,94 @@
+{
+  "summary": {
+    "lines": 90,
+    "branches": 90,
+    "functions": 90,
+    "statements": 90
+  },
+  "files": [
+    {
+      "pathIncludes": "src/lib/canonical/api-football-adapter.ts",
+      "lines": 90,
+      "branches": 90,
+      "functions": 90,
+      "statements": 90
+    },
+    {
+      "pathIncludes": "src/lib/canonical/api-football-odds-adapter.ts",
+      "lines": 95,
+      "branches": 95,
+      "functions": 95,
+      "statements": 95
+    },
+    {
+      "pathIncludes": "src/lib/canonical/provider-domain.ts",
+      "lines": 95,
+      "branches": 95,
+      "functions": 95,
+      "statements": 95
+    },
+    {
+      "pathIncludes": "src/lib/canonical/sportmonks-adapter.ts",
+      "lines": 95,
+      "branches": 95,
+      "functions": 95,
+      "statements": 95
+    },
+    {
+      "pathIncludes": "src/lib/pipeline-live-input.ts",
+      "lines": 90,
+      "branches": 90,
+      "functions": 90,
+      "statements": 90
+    },
+    {
+      "pathIncludes": "src/lib/provider-fixture-mapping-service.ts",
+      "lines": 95,
+      "branches": 95,
+      "functions": 95,
+      "statements": 95
+    },
+    {
+      "pathIncludes": "src/lib/provider-fusion-snapshot.ts",
+      "lines": 95,
+      "branches": 95,
+      "functions": 95,
+      "statements": 95
+    },
+    {
+      "pathIncludes": "src/lib/provider-fusion-pipeline-read.ts",
+      "lines": 90,
+      "branches": 89,
+      "functions": 90,
+      "statements": 90
+    },
+    {
+      "pathIncludes": "src/lib/provider-fusion-odds-shadow.ts",
+      "lines": 95,
+      "branches": 95,
+      "functions": 95,
+      "statements": 95
+    },
+    {
+      "pathIncludes": "src/lib/provider-fusion-odds-promotion.ts",
+      "lines": 95,
+      "branches": 95,
+      "functions": 95,
+      "statements": 95
+    },
+    {
+      "pathIncludes": "src/lib/provider-fusion-stats-events-promotion.ts",
+      "lines": 95,
+      "branches": 95,
+      "functions": 95,
+      "statements": 95
+    },
+    {
+      "pathIncludes": "src/lib/sportmonks-provider-fallback.ts",
+      "lines": 95,
+      "branches": 95,
+      "functions": 95,
+      "statements": 95
+    }
+  ]
+}

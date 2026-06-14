@@ -17,6 +17,7 @@ type NotificationActionPayload = { action: string; title: string; icon?: string 
 type ExtendedNotificationOptions = NotificationOptions & {
   renotify?: boolean;
   actions?: NotificationActionPayload[];
+  requireInteraction?: boolean;
 };
 
 self.addEventListener('push', (event) => {
@@ -26,7 +27,9 @@ self.addEventListener('push', (event) => {
     tag?: string;
     url?: string;
     icon?: string;
-    duration?: number;
+    duration?: number | null;
+    critical?: boolean;
+    requireInteraction?: boolean;
     actions?: NotificationActionPayload[];
     data?: Record<string, unknown>;
   } = {};
@@ -38,7 +41,10 @@ self.addEventListener('push', (event) => {
 
   const title = payload.title ?? 'TFI';
   const tag = payload.tag ?? 'tfi-notification';
-  const durationMs = payload.duration ?? DEFAULT_NOTIFICATION_DURATION_MS;
+  const isSticky = payload.critical === true || payload.requireInteraction === true || payload.duration === null;
+  const durationMs = typeof payload.duration === 'number'
+    ? payload.duration
+    : DEFAULT_NOTIFICATION_DURATION_MS;
 
   const options: ExtendedNotificationOptions = {
     body: payload.body ?? '',
@@ -46,21 +52,22 @@ self.addEventListener('push', (event) => {
     badge: '/pwa-192x192.png',
     tag,
     renotify: true,
+    requireInteraction: isSticky,
     data: { url: payload.url ?? '/', ...(payload.data ?? {}) },
     actions: payload.actions,
   };
 
   event.waitUntil(
-    self.registration.showNotification(title, options).then(
-      () =>
-        new Promise<void>((resolve) => {
-          setTimeout(async () => {
-            const notes = await self.registration.getNotifications({ tag });
-            notes.forEach((n) => n.close());
-            resolve();
-          }, durationMs);
-        }),
-    ),
+    self.registration.showNotification(title, options).then(() => {
+      if (isSticky || durationMs <= 0) return undefined;
+      return new Promise<void>((resolve) => {
+        setTimeout(async () => {
+          const notes = await self.registration.getNotifications({ tag });
+          notes.forEach((n) => n.close());
+          resolve();
+        }, durationMs);
+      });
+    }),
   );
 });
 

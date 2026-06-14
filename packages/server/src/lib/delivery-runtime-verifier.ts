@@ -1,8 +1,11 @@
-export type DeliveryRuntimeChannelType = 'telegram' | 'web_push';
+export type DeliveryRuntimeChannelType = 'telegram' | 'web_push' | 'native_push' | 'sms' | 'voice_call';
 
 export interface DeliveryRuntimeReadiness {
   telegram: boolean;
   webPush: boolean;
+  nativePush?: boolean;
+  sms?: boolean;
+  voiceCall?: boolean;
 }
 
 export interface DeliveryRuntimeChannelRow {
@@ -29,7 +32,11 @@ export interface DeliveryRuntimeSummary {
 }
 
 function isKnownChannel(value: string): value is DeliveryRuntimeChannelType {
-  return value === 'telegram' || value === 'web_push';
+  return value === 'telegram'
+    || value === 'web_push'
+    || value === 'native_push'
+    || value === 'sms'
+    || value === 'voice_call';
 }
 
 export function normalizeChannelCsv(value: string | null | undefined): DeliveryRuntimeChannelType[] {
@@ -55,6 +62,9 @@ export function buildExpectedDeliveryChannels(
   const channels: DeliveryRuntimeChannelType[] = [];
   if (readiness.telegram) channels.push('telegram');
   if (readiness.webPush) channels.push('web_push');
+  if (readiness.nativePush) channels.push('native_push');
+  if (readiness.sms) channels.push('sms');
+  if (readiness.voiceCall) channels.push('voice_call');
   return channels;
 }
 

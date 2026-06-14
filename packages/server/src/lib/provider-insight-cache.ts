@@ -10,6 +10,7 @@ import {
   type ApiStanding,
   type ApiFixtureStat,
 } from './football-api.js';
+import { fetchSportmonksSupplementForFixture } from './sportmonks-provider-fallback.js';
 import { resolveMatchOdds } from './odds-resolver.js';
 import {
   getProviderFixtureCache,
@@ -41,6 +42,8 @@ export interface InsightDomainState<T> {
   cachedAt: string | null;
   fetchedAt: string | null;
   degraded: boolean;
+  provider?: string;
+  coverageFlags?: Record<string, unknown>;
 }
 
 export interface MatchInsightResult {
@@ -225,6 +228,8 @@ function buildStatsDomain(
     cachedAt: row?.cached_at ?? null,
     fetchedAt: row?.stats_fetched_at ?? null,
     degraded: row?.degraded ?? false,
+    provider: typeof row?.coverage_flags?.provider === 'string' ? row.coverage_flags.provider : 'api-football',
+    coverageFlags: row?.coverage_flags ?? {},
   };
 }
 
@@ -240,6 +245,8 @@ function buildEventsDomain(
     cachedAt: row?.cached_at ?? null,
     fetchedAt: row?.events_fetched_at ?? null,
     degraded: row?.degraded ?? false,
+    provider: typeof row?.coverage_flags?.provider === 'string' ? row.coverage_flags.provider : 'api-football',
+    coverageFlags: row?.coverage_flags ?? {},
   };
 }
 
@@ -287,6 +294,87 @@ function buildEventsCoverage(events: ApiFixtureEvent[]): Record<string, unknown>
     event_count: events.length,
     has_payload: events.length > 0,
   };
+}
+
+function hasStatsPayload(stats: ApiFixtureStat[] | null | undefined): boolean {
+  return Array.isArray(stats) && stats.some((team) => Array.isArray(team.statistics) && team.statistics.length > 0);
+}
+
+function hasEventsPayload(events: ApiFixtureEvent[] | null | undefined): boolean {
+  return Array.isArray(events) && events.length > 0;
+}
+
+function fixtureHasGoalEventsToReconcile(fixture: ApiFixture | null): boolean {
+  const homeGoals = fixture?.goals?.home;
+  const awayGoals = fixture?.goals?.away;
+  return Number(homeGoals ?? 0) + Number(awayGoals ?? 0) > 0;
+}
+
+async function supplementDetailsWithSportmonks(args: {
+  matchId: string;
+  fixture: ApiFixture | null;
+  stats: ApiFixtureStat[] | null | undefined;
+  events: ApiFixtureEvent[] | null | undefined;
+  status: string;
+  matchMinute: number | null;
+  deps: ProviderInsightDeps;
+}): Promise<boolean> {
+  if (!args.fixture) return false;
+  const statsMissing = !hasStatsPayload(args.stats);
+  const eventsMissing = !hasEventsPayload(args.events);
+  const shouldCheckEvents = eventsMissing && fixtureHasGoalEventsToReconcile(args.fixture);
+  if (!statsMissing && !shouldCheckEvents) return false;
+  const supplement = await fetchSportmonksSupplementForFixture(args.fixture);
+  if (!supplement?.used) return false;
+  let wrote = false;
+
+  if (statsMissing && supplement.statistics.length > 0) {
+    await args.deps.upsertProviderFixtureStatsCache({
+      match_id: args.matchId,
+      statistics_payload: supplement.statistics,
+      coverage_flags: {
+        ...buildStatsCoverage(supplement.statistics),
+        ...supplement.coverageFlags,
+        provider: supplement.provider,
+        provider_fixture_id: supplement.providerFixtureId,
+        mapping_method: supplement.mappingMethod,
+        mapping_confidence: supplement.mappingConfidence,
+        fallback_from: 'api-football',
+      },
+      stats_fetched_at: args.deps.now().toISOString(),
+      match_status: args.status,
+      match_minute: args.matchMinute,
+      freshness: 'fresh',
+      degraded: false,
+      last_refresh_error: '',
+    });
+    wrote = true;
+  }
+
+  if (shouldCheckEvents && supplement.events.length > 0) {
+    await args.deps.upsertProviderFixtureEventsCache({
+      match_id: args.matchId,
+      events_payload: supplement.events,
+      coverage_flags: {
+        ...buildEventsCoverage(supplement.events),
+        ...supplement.coverageFlags,
+        provider: supplement.provider,
+        provider_fixture_id: supplement.providerFixtureId,
+        mapping_method: supplement.mappingMethod,
+        mapping_confidence: supplement.mappingConfidence,
+        fallback_from: 'api-football',
+      },
+      events_fetched_at: args.deps.now().toISOString(),
+      match_status: args.status,
+      match_minute: args.matchMinute,
+      freshness: 'fresh',
+      degraded: false,
+      last_refresh_error: '',
+    });
+    wrote = true;
+  }
+
+  return wrote;
 }
 
 function buildLineupsCoverage(lineups: ApiFixtureLineup[]): Record<string, unknown> {
@@ -429,10 +517,22 @@ export async function ensureMatchInsight(
   const detailsReady = !initialContext.includeStartedDetails || (initialStatsFreshness === 'fresh' && initialEventsFreshness === 'fresh');
 
   if (initialFixtureFreshness === 'fresh' && detailsReady && !bypassStartedCache(mode, initialContext.status)) {
+    const supplemented = initialContext.includeStartedDetails
+      ? await supplementDetailsWithSportmonks({
+        matchId,
+        fixture: initialContext.fixture ?? fixturePayloadOf(initial.fixtureRow),
+        stats: statsPayloadOf(initial.statsRow),
+        events: eventsPayloadOf(initial.eventsRow),
+        status: initialContext.status,
+        matchMinute: initialContext.matchMinute,
+        deps,
+      })
+      : false;
+    const rows = supplemented ? await loadInsightRows(matchId, deps) : initial;
     return {
-      fixture: buildFixtureDomain(initial.fixtureRow, 'fresh', 'hit'),
-      statistics: buildStatsDomain(initial.statsRow, initialContext.includeStartedDetails ? initialStatsFreshness : 'missing', initialContext.includeStartedDetails ? 'hit' : 'miss'),
-      events: buildEventsDomain(initial.eventsRow, initialContext.includeStartedDetails ? initialEventsFreshness : 'missing', initialContext.includeStartedDetails ? 'hit' : 'miss'),
+      fixture: buildFixtureDomain(rows.fixtureRow, 'fresh', 'hit'),
+      statistics: buildStatsDomain(rows.statsRow, initialContext.includeStartedDetails ? initialStatsFreshness : 'missing', initialContext.includeStartedDetails ? 'hit' : 'miss'),
+      events: buildEventsDomain(rows.eventsRow, initialContext.includeStartedDetails ? initialEventsFreshness : 'missing', initialContext.includeStartedDetails ? 'hit' : 'miss'),
     };
   }
 
@@ -454,6 +554,8 @@ export async function ensureMatchInsight(
       deps.fetchFixtureStatistics(matchId),
       deps.fetchFixtureEvents(matchId),
     ]);
+    const apiStats = statsResult.status === 'fulfilled' ? statsResult.value : null;
+    const apiEvents = eventsResult.status === 'fulfilled' ? eventsResult.value : null;
 
     if (statsResult.status === 'fulfilled') {
       await deps.upsertProviderFixtureStatsCache({
@@ -482,6 +584,16 @@ export async function ensureMatchInsight(
         last_refresh_error: '',
       });
     }
+
+    await supplementDetailsWithSportmonks({
+      matchId,
+      fixture,
+      stats: apiStats,
+      events: apiEvents,
+      status: refreshedStatus,
+      matchMinute: refreshedMinute,
+      deps,
+    });
   }
 
   if (options.refreshOdds !== false && fixture) {
@@ -667,6 +779,16 @@ export async function refreshProviderInsightsForMatches(
         last_refresh_error: '',
       });
     }
+
+    await supplementDetailsWithSportmonks({
+      matchId,
+      fixture,
+      stats,
+      events,
+      status: fixture.fixture.status.short,
+      matchMinute: fixture.fixture.status.elapsed,
+      deps,
+    });
 
     if (lineups) {
       await deps.upsertProviderFixtureLineupsCache({

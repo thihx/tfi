@@ -447,7 +447,8 @@ describe('MatchesTab', () => {
     expect(liveStreamButtons).toHaveLength(2);
     expect(liveStreamButtons[0]).toHaveAttribute('title', 'Live 1 · xoilacztu.tv');
     expect(liveStreamButtons[1]).toHaveAttribute('title', 'Live 2 · socolive16.cv');
-    expect(liveStreamButtons[0]!.closest('[data-label="Match"]')).toBeTruthy();
+    expect(liveStreamButtons[0]!.closest('[data-label="Live"]')).toBeTruthy();
+    expect(liveStreamButtons[0]!.closest('[data-label="Match"]')).toBeNull();
     expect(liveStreamButtons[0]!.closest('[data-label="Action"]')).toBeNull();
 
     await user.click(liveStreamButtons[0]!);

@@ -14,6 +14,8 @@ const CURRENT_USER = {
 vi.mock('../config.js', () => ({
   config: {
     vapidPublicKey: 'public-key',
+    vapidPrivateKey: 'private-key',
+    vapidContactEmail: 'ops@example.com',
   },
 }));
 
@@ -46,7 +48,20 @@ describe('GET /api/push/status', () => {
   test('returns current user subscription count', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/push/status' });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ configured: true, subscriptionCount: 2 });
+    expect(res.json()).toEqual({
+      configured: true,
+      subscriptionCount: 2,
+      ready: true,
+      vapid: {
+        publicKeyPresent: true,
+        privateKeyPresent: true,
+        contactEmailPresent: true,
+      },
+      subscription: {
+        count: 2,
+        hasActiveSubscription: true,
+      },
+    });
 
     const repo = await import('../repos/push-subscriptions.repo.js');
     expect(repo.countSubscriptionsByUserId).toHaveBeenCalledWith('user-1');
@@ -56,7 +71,7 @@ describe('GET /api/push/status', () => {
     const res = await app.inject({ method: 'GET', url: '/api/me/push/status' });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ configured: true, subscriptionCount: 2 });
+    expect(res.json()).toMatchObject({ configured: true, subscriptionCount: 2, ready: true });
   });
 });
 

@@ -292,7 +292,7 @@ export interface BankrollSnapshot {
   recentLedger: BankrollLedgerEntry[];
 }
 
-export type NotificationChannelType = 'telegram' | 'zalo' | 'web_push' | 'email';
+export type NotificationChannelType = 'telegram' | 'zalo' | 'web_push' | 'native_push' | 'email' | 'sms' | 'voice_call';
 export type NotificationChannelStatus = 'draft' | 'pending' | 'verified' | 'disabled';
 
 export interface NotificationChannelConfig {

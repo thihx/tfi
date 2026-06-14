@@ -1,21 +1,31 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 const mockReportJobProgress = vi.fn();
+const mockGetPendingCriticalFallbackDeliveries = vi.fn();
 const mockGetPendingTelegramDeliveries = vi.fn();
 const mockMarkDeliveryRowsFailed = vi.fn();
 const mockMarkDeliveryRowsDelivered = vi.fn();
+const mockMarkDeliveryRowsSuppressed = vi.fn();
 const mockMarkRecommendationDeliveriesDelivered = vi.fn();
 const mockMarkRecommendationNotified = vi.fn();
 const mockSendTelegramMessage = vi.fn();
+const mockGetNativePushDevicesByUserId = vi.fn();
+const mockDeleteNativePushDeviceByToken = vi.fn();
+const mockSendFcmNotification = vi.fn();
+const mockSendSmsNotification = vi.fn();
+const mockSendVoiceNotification = vi.fn();
+const mockEvaluateCriticalFallbackPolicy = vi.fn();
 
 vi.mock('../jobs/job-progress.js', () => ({
   reportJobProgress: mockReportJobProgress,
 }));
 
 vi.mock('../repos/recommendation-deliveries.repo.js', () => ({
+  getPendingCriticalFallbackDeliveries: mockGetPendingCriticalFallbackDeliveries,
   getPendingTelegramDeliveries: mockGetPendingTelegramDeliveries,
   markDeliveryRowsFailed: mockMarkDeliveryRowsFailed,
   markDeliveryRowsDelivered: mockMarkDeliveryRowsDelivered,
+  markDeliveryRowsSuppressed: mockMarkDeliveryRowsSuppressed,
   markRecommendationDeliveriesDelivered: mockMarkRecommendationDeliveriesDelivered,
 }));
 
@@ -25,6 +35,24 @@ vi.mock('../repos/recommendations.repo.js', () => ({
 
 vi.mock('../lib/telegram.js', () => ({
   sendTelegramMessage: mockSendTelegramMessage,
+}));
+
+vi.mock('../repos/native-push-devices.repo.js', () => ({
+  getNativePushDevicesByUserId: mockGetNativePushDevicesByUserId,
+  deleteNativePushDeviceByToken: mockDeleteNativePushDeviceByToken,
+}));
+
+vi.mock('../lib/native-push.js', () => ({
+  sendFcmNotification: mockSendFcmNotification,
+}));
+
+vi.mock('../lib/twilio.js', () => ({
+  sendSmsNotification: mockSendSmsNotification,
+  sendVoiceNotification: mockSendVoiceNotification,
+}));
+
+vi.mock('../lib/critical-fallback-policy.js', () => ({
+  evaluateCriticalFallbackPolicy: mockEvaluateCriticalFallbackPolicy,
 }));
 
 vi.mock('../lib/time.js', () => ({
@@ -42,18 +70,26 @@ const { deliverTelegramNotificationsJob } = await import('../jobs/deliver-telegr
 beforeEach(() => {
   vi.clearAllMocks();
   mockGetPendingTelegramDeliveries.mockResolvedValue([]);
+  mockGetPendingCriticalFallbackDeliveries.mockResolvedValue([]);
   mockMarkDeliveryRowsFailed.mockResolvedValue(1);
   mockMarkDeliveryRowsDelivered.mockResolvedValue(1);
+  mockMarkDeliveryRowsSuppressed.mockResolvedValue(1);
   mockMarkRecommendationDeliveriesDelivered.mockResolvedValue(1);
   mockMarkRecommendationNotified.mockResolvedValue({ id: 1 });
   mockSendTelegramMessage.mockResolvedValue(undefined);
+  mockGetNativePushDevicesByUserId.mockResolvedValue([]);
+  mockDeleteNativePushDeviceByToken.mockResolvedValue(undefined);
+  mockSendFcmNotification.mockResolvedValue({ ok: true });
+  mockSendSmsNotification.mockResolvedValue({ ok: true });
+  mockSendVoiceNotification.mockResolvedValue({ ok: true });
+  mockEvaluateCriticalFallbackPolicy.mockResolvedValue({ allowed: true });
 });
 
 describe('deliverTelegramNotificationsJob', () => {
   test('returns early when there is nothing pending', async () => {
     const result = await deliverTelegramNotificationsJob();
 
-    expect(result).toEqual({ pending: 0, delivered: 0, failed: 0 });
+    expect(result).toMatchObject({ pending: 0, delivered: 0, failed: 0 });
     expect(mockSendTelegramMessage).not.toHaveBeenCalled();
   });
 
@@ -93,7 +129,7 @@ describe('deliverTelegramNotificationsJob', () => {
 
     const result = await deliverTelegramNotificationsJob();
 
-    expect(result).toEqual({ pending: 1, delivered: 1, failed: 0 });
+    expect(result).toMatchObject({ pending: 1, delivered: 1, failed: 0 });
     expect(mockSendTelegramMessage).toHaveBeenCalledOnce();
     expect(mockSendTelegramMessage.mock.calls[0]?.[1]).toContain('RECOMMENDATION');
     expect(mockMarkRecommendationDeliveriesDelivered).toHaveBeenCalledWith(42, ['user-1'], 'telegram');
@@ -143,7 +179,7 @@ describe('deliverTelegramNotificationsJob', () => {
 
     const result = await deliverTelegramNotificationsJob();
 
-    expect(result).toEqual({ pending: 1, delivered: 1, failed: 0 });
+    expect(result).toMatchObject({ pending: 1, delivered: 1, failed: 0 });
     expect(mockSendTelegramMessage.mock.calls[0]?.[1]).toContain('ĐIỀU KIỆN ĐÃ THỎA');
     expect(mockSendTelegramMessage.mock.calls[0]?.[1]).toContain('Điều kiện:');
     expect(mockSendTelegramMessage.mock.calls[0]?.[1]).toContain('Điều kiện đạt:');
@@ -230,7 +266,85 @@ describe('deliverTelegramNotificationsJob', () => {
 
     const result = await deliverTelegramNotificationsJob();
 
-    expect(result).toEqual({ pending: 1, delivered: 0, failed: 1 });
+    expect(result).toMatchObject({ pending: 1, delivered: 0, failed: 1 });
     expect(mockMarkDeliveryRowsFailed).toHaveBeenCalledWith([88], 'telegram', 'Telegram API down');
+  });
+
+  test('delivers recommendation rows through native push fallback', async () => {
+    mockGetPendingCriticalFallbackDeliveries.mockImplementation(async (channel: string) => (
+      channel === 'native_push'
+        ? [{
+            deliveryId: 501,
+            userId: 'user-1',
+            address: null,
+            channelType: 'native_push',
+            recommendationId: 42,
+            matchId: '100',
+            metadata: {},
+            createdAt: '2026-04-02T10:00:00.000Z',
+            recommendationMinute: 32,
+            recommendationScore: '0-0',
+            recommendationSelection: 'Under 1.75 Goals @2.05',
+            recommendationOdds: 2.05,
+            recommendationConfidence: 6,
+            recommendationHomeTeam: 'Brisbane Roar',
+            recommendationAwayTeam: 'Sydney',
+          }]
+        : []
+    ));
+    mockGetNativePushDevicesByUserId.mockResolvedValue([
+      { provider: 'fcm', token: 'fcm-token' },
+    ]);
+
+    const result = await deliverTelegramNotificationsJob();
+
+    expect(result.nativePushDelivered).toBe(1);
+    expect(mockSendFcmNotification).toHaveBeenCalledWith('fcm-token', expect.objectContaining({
+      title: 'TFI CRITICAL ALERT',
+      data: expect.objectContaining({
+        channelType: 'native_push',
+        recommendationId: 42,
+      }),
+    }));
+    expect(mockMarkDeliveryRowsDelivered).toHaveBeenCalledWith([501], 'native_push');
+    expect(mockMarkRecommendationNotified).toHaveBeenCalledWith(42, 'native_push');
+  });
+
+  test('suppresses SMS fallback when critical fallback policy blocks it', async () => {
+    mockGetPendingCriticalFallbackDeliveries.mockImplementation(async (channel: string) => (
+      channel === 'sms'
+        ? [{
+            deliveryId: 601,
+            userId: 'user-1',
+            address: '+15551234567',
+            channelType: 'sms',
+            recommendationId: 42,
+            matchId: '100',
+            metadata: {},
+            createdAt: '2026-04-02T10:00:00.000Z',
+            recommendationMinute: 32,
+            recommendationScore: '0-0',
+            recommendationSelection: 'Under 1.75 Goals @2.05',
+            recommendationOdds: 2.05,
+            recommendationConfidence: 8,
+            recommendationHomeTeam: 'Brisbane Roar',
+            recommendationAwayTeam: 'Sydney',
+          }]
+        : []
+    ));
+    mockEvaluateCriticalFallbackPolicy.mockResolvedValueOnce({
+      allowed: false,
+      reason: 'sms global daily cost guard is not configured',
+    });
+
+    const result = await deliverTelegramNotificationsJob();
+
+    expect(result.smsFailed).toBe(1);
+    expect(mockSendSmsNotification).not.toHaveBeenCalled();
+    expect(mockMarkDeliveryRowsSuppressed).toHaveBeenCalledWith(
+      [601],
+      'sms',
+      'sms global daily cost guard is not configured',
+    );
   });
 });

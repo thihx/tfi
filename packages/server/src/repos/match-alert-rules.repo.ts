@@ -93,6 +93,18 @@ export interface ConditionAlertPresetView {
   source: 'system' | 'user';
 }
 
+export interface LocalMatchStartAlertScheduleItem {
+  ruleId: number;
+  matchId: string;
+  homeTeam: string;
+  awayTeam: string;
+  league: string;
+  kickoffAtUtc: string | null;
+  kickoffLeadMinutes: number;
+  fireAtUtc: string | null;
+  source: string;
+}
+
 interface UserPresetRow {
   id: string;
   label: string;
@@ -653,4 +665,69 @@ export async function getRealtimeAlertMatchIds(): Promise<string[]> {
     [TERMINAL_STATUSES],
   );
   return result.rows.map((row) => String(row.match_id));
+}
+
+export async function getLocalMatchStartAlertSchedule(
+  userId: string,
+  lookaheadHours = 48,
+): Promise<LocalMatchStartAlertScheduleItem[]> {
+  const hours = Math.max(1, Math.min(168, Math.floor(lookaheadHours)));
+  const result = await query<{
+    rule_id: number;
+    match_id: string;
+    home_team: string;
+    away_team: string;
+    league: string | null;
+    kickoff_at_utc: string | null;
+    kickoff_lead_minutes: number;
+    fire_at_utc: string | null;
+    source: string;
+  }>(
+    `SELECT
+        r.id AS rule_id,
+        r.match_id,
+        m.home_team,
+        m.away_team,
+        COALESCE(m.league_name, m.league) AS league,
+        m.kickoff_at_utc::text AS kickoff_at_utc,
+        COALESCE(s.kickoff_lead_minutes, 0)::int AS kickoff_lead_minutes,
+        CASE
+          WHEN m.kickoff_at_utc IS NULL THEN NULL
+          ELSE (m.kickoff_at_utc - (COALESCE(s.kickoff_lead_minutes, 0)::int * INTERVAL '1 minute'))::text
+        END AS fire_at_utc,
+        r.source
+       FROM user_match_alert_rules r
+       LEFT JOIN user_match_alert_settings s ON s.user_id = r.user_id
+       JOIN matches m ON m.match_id = r.match_id
+      WHERE r.user_id = $1
+        AND r.enabled = TRUE
+        AND r.compiled_status = 'compiled'
+        AND r.alert_kind = 'match_start'
+        AND r.match_id IS NOT NULL
+        AND COALESCE(s.match_start_enabled, TRUE) = TRUE
+        AND m.status <> ALL($2)
+        AND m.kickoff_at_utc IS NOT NULL
+        AND m.kickoff_at_utc >= NOW() - INTERVAL '15 minutes'
+        AND m.kickoff_at_utc <= NOW() + ($3::int * INTERVAL '1 hour')
+        AND NOT EXISTS (
+          SELECT 1
+            FROM user_match_alert_deliveries d
+           WHERE d.rule_id = r.id
+             AND d.match_id = r.match_id
+        )
+      ORDER BY m.kickoff_at_utc ASC, r.id ASC`,
+    [userId, TERMINAL_STATUSES, hours],
+  );
+
+  return result.rows.map((row) => ({
+    ruleId: Number(row.rule_id),
+    matchId: row.match_id,
+    homeTeam: row.home_team,
+    awayTeam: row.away_team,
+    league: row.league ?? '',
+    kickoffAtUtc: row.kickoff_at_utc,
+    kickoffLeadMinutes: Number(row.kickoff_lead_minutes ?? 0),
+    fireAtUtc: row.fire_at_utc,
+    source: row.source,
+  }));
 }

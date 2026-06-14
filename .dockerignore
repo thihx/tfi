@@ -2,7 +2,10 @@ node_modules
 packages/server/node_modules
 packages/server/dist
 packages/server/replay-work
+replay-work
 packages/server/output
+android
+ios
 dist
 output
 .git

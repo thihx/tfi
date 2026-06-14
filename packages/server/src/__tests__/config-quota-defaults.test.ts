@@ -3,8 +3,31 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 describe('provider quota protective defaults', () => {
   afterEach(() => {
     vi.doUnmock('dotenv');
+    vi.doUnmock('node:fs');
     vi.unstubAllEnvs();
     vi.resetModules();
+  });
+
+  test('does not let package env files override explicit test env values', async () => {
+    const dotenvConfig = vi.fn();
+    vi.doMock('dotenv', () => ({
+      default: { config: dotenvConfig },
+      config: dotenvConfig,
+    }));
+    vi.doMock('node:fs', () => ({
+      existsSync: vi.fn(() => true),
+    }));
+    vi.stubEnv('NODE_ENV', 'test');
+    vi.stubEnv('SPORTMONKS_API_TOKEN', 'test-token');
+    vi.resetModules();
+
+    const { config } = await import('../config.js');
+
+    expect(config.sportmonksApiToken).toBe('test-token');
+    expect(dotenvConfig).toHaveBeenCalledWith(expect.objectContaining({
+      path: expect.stringMatching(/packages[\\/]+server[\\/]+\.env\.local$/),
+      override: false,
+    }));
   });
 
   test('keeps public live board refresh enabled by default with a quota cap', async () => {

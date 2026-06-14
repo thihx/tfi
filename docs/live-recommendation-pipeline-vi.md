@@ -1,6 +1,6 @@
 # Live Recommendation Pipeline
 
-**Updated:** 2026-06-12
+**Updated:** 2026-06-14
 **Scope:** source of truth for the current live football recommendation engine.
 
 ## Operating Principle
@@ -26,6 +26,7 @@ Related design contracts:
 - [live-recommendation-regression-matrix-vi.md](live-recommendation-regression-matrix-vi.md) defines the regression and edge-case matrix that should gate the output-router refactor.
 - [odds-first-stats-only-signal-contract-vi.md](odds-first-stats-only-signal-contract-vi.md) defines the current stats-only signal contract when live odds are unavailable.
 - [live-data-provider-fusion-contract-vi.md](live-data-provider-fusion-contract-vi.md) defines the draft multi-provider freshness, coverage, consensus, and canonical snapshot contract for live score/events/stats/odds.
+- [multi-provider-architecture-contract-vi.md](multi-provider-architecture-contract-vi.md) defines the provider-agnostic implementation contract, canonical domain model, phase gates, coverage thresholds, and rollback rules.
 
 ## Active Runtime
 
@@ -89,7 +90,7 @@ Related design contracts:
 
 The browser must never call API-Sports directly. Frontend code must use backend routes such as `/api/matches` and `/api/proxy/football/*`. Server-side provider calls stay centralized in `packages/server/src/lib/football-api.ts`.
 
-Provider roadmap: API-Football is currently the active provider, but live recommendation should move toward the multi-provider fusion contract in [live-data-provider-fusion-contract-vi.md](live-data-provider-fusion-contract-vi.md). Until that is implemented, provider limitations such as empty statistics responses or delayed live clocks must be represented as provider coverage/freshness warnings, not as internal system failures.
+Provider roadmap: API-Football remains the default production provider. Phase 6 adds an opt-in provider-fusion shadow read audit (`PROVIDER_FUSION_ENABLED=true` + `PROVIDER_FUSION_SHADOW_ENABLED=true`, generic promotion off) that compares legacy cache inputs with a canonical fusion snapshot and writes `PIPELINE_PROVIDER_FUSION_SHADOW_DIFF`. Phase 7 may promote fusion-selected Sportmonks stats/events into prompt inputs only when `PROVIDER_FUSION_STATS_EVENTS_PROMOTION=true`, API-Football data is missing/degraded, mapping confidence is trusted, and there is no score/minute conflict. Phase 8 adds odds provider-role shadow audit (`PIPELINE_PROVIDER_FUSION_ODDS_SHADOW`) with bookmaker/source/line provenance, freshness, and money guard diagnostics. Phase 9 may promote fusion-selected canonical live odds into the money recommendation path only when `PROVIDER_FUSION_ODDS_PROMOTION=true`, `PROVIDER_FUSION_ODDS_PROVIDER_ALLOWLIST` includes the selected odds provider, `PROVIDER_FUSION_ROLLOUT_PERCENT` admits the match, `PROVIDER_FUSION_KILL_SWITCH=false`, and the Phase 8 money guard confirms fresh tradable live odds without score/minute/odds conflicts. After Phase 9, stats/events promotion and odds promotion may run together under independent guards; stats/events promotion is applied before odds promotion so odds sanitization uses the active stats snapshot. Phase 10 isolates API-Football-shaped fixture/stat/event payloads inside `packages/server/src/lib/pipeline-live-input.ts`; `server-pipeline.ts` and `provider-fusion-pipeline-read.ts` consume `PipelineFixtureInput`, compact prompt inputs, and provider source envelopes instead of API-Football raw types. Reference odds, provider conflicts, stale/unknown freshness, and unsupported canonical markets block recommendation save during odds promotion. Kill-switch, empty allowlist, provider-not-allowlisted, and outside-rollout states immediately rollback to the legacy odds path without changing legacy save behavior. No-live-odds output remains stats-only push/no-save. Provider limitations such as empty statistics responses or delayed live clocks must be represented as provider coverage/freshness warnings, not as internal system failures.
 
 ## Replay And Improvement Loop
 

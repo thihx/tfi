@@ -14,6 +14,9 @@
     "replay:strategic-context-suite": "tsx src/scripts/replay-strategic-context-suite.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:coverage:provider-fusion": "vitest run --coverage --config vitest.provider-fusion.coverage.config.ts",
+    "check:coverage:provider-fusion": "tsx src/scripts/check-provider-fusion-coverage.ts",
     "test:watch": "vitest",
     "verify:delivery-runtime": "tsx src/scripts/verify-delivery-runtime.ts",
     "verify:match-alert-real-llm": "tsx src/scripts/verify-match-alert-real-llm.ts --allow-real-llm",
@@ -80,6 +83,8 @@
     "provider:coverage-refresh": "tsx src/scripts/refresh-provider-league-coverage.ts",
     "provider:odds-quality-report": "tsx src/scripts/report-provider-odds-quality.ts",
     "provider:real-sample": "tsx src/scripts/audit-real-provider-samples.ts",
+    "provider:sportmonks-shadow": "tsx src/scripts/run-sportmonks-shadow-poc.ts",
+    "provider:fusion-shadow": "tsx src/scripts/run-provider-fusion-shadow.ts",
     "provider:coverage-backfill": "tsx src/scripts/backfill-provider-odds-coverage-flags.ts",
     "benchmark:gemini-models": "tsx src/scripts/compare-gemini-model-benchmark.ts --apply-replay-policy --max-scenarios 12",
     "benchmark:gemini-models:smoke": "tsx src/scripts/compare-gemini-model-benchmark.ts --smoke-only"
@@ -98,6 +103,7 @@
     "@types/node": "^22.15.0",
     "@types/pg": "^8.12.0",
     "@types/web-push": "^3.6.4",
+    "@vitest/coverage-v8": "^4.1.0",
     "tsx": "^4.20.3",
     "typescript": "^5.9.3",
     "vitest": "^4.1.0"

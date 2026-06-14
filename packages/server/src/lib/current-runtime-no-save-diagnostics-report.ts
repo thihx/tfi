@@ -282,7 +282,14 @@ export async function buildCurrentRuntimeNoSaveDiagnosticsReport(
          COUNT(*) FILTER (WHERE COALESCE(NULLIF(metadata->>'evidenceMode', ''), '') = '')::text AS missing_evidence_mode,
          COUNT(*) FILTER (WHERE COALESCE(NULLIF(metadata->>'valuePercent', ''), '') = '')::text AS missing_value_percent,
          COUNT(*) FILTER (WHERE COALESCE(NULLIF(metadata->>'riskLevel', ''), '') = '')::text AS missing_risk_level,
-         COUNT(*) FILTER (WHERE COALESCE(NULLIF(metadata->>'shadowCandidatePresent', ''), 'false') <> 'true')::text AS missing_shadow_candidate,
+         COUNT(*) FILTER (
+           WHERE NOT (
+             metadata ? 'shadowCandidatePresent'
+             AND COALESCE(NULLIF(metadata->>'shadowCandidateMarketResolutionStatus', ''), '') <> ''
+             AND COALESCE(NULLIF(metadata->>'shadowCandidateReasonCode', ''), '') <> ''
+             AND COALESCE(NULLIF(metadata->>'shadowCandidateReasonCode', ''), '') NOT IN ('not_provided', 'parse_error')
+           )
+         )::text AS missing_shadow_candidate,
          COUNT(*) FILTER (WHERE metadata->>'shadowCandidatePresent' = 'true')::text AS shadow_candidate_present,
          COUNT(*) FILTER (WHERE metadata->>'shadowCandidateMarketResolutionStatus' = 'resolved')::text AS shadow_candidate_resolved,
          COUNT(*) FILTER (
@@ -307,7 +314,6 @@ export async function buildCurrentRuntimeNoSaveDiagnosticsReport(
          AND actor = 'auto-pipeline'
          AND action IN ('LLM_PARSE_DIAGNOSTIC', 'PIPELINE_MATCH_ANALYZED')
          AND metadata->>'promptVersion' = $2
-         AND metadata->>'shadowCandidatePresent' = 'true'
          AND timestamp >= NOW() - ($1::int * INTERVAL '1 hour')
        GROUP BY 1
        ORDER BY COUNT(*) DESC, key

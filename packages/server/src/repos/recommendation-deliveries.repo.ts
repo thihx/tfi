@@ -414,6 +414,11 @@ export interface PendingTelegramDeliveryRow {
   recommendationMode: string | null;
 }
 
+export interface PendingCriticalFallbackDeliveryRow extends Omit<PendingTelegramDeliveryRow, 'chatId' | 'notificationLanguage'> {
+  address: string | null;
+  channelType: 'native_push' | 'sms' | 'voice_call';
+}
+
 interface PendingTelegramDeliveryQueryRow {
   delivery_id: number;
   user_id: string;
@@ -606,6 +611,44 @@ async function syncDeliveryChannelStates(
              WHERE ps.user_id = td.user_id::text
              LIMIT 1
           ) active_push ON TRUE
+          UNION ALL
+          SELECT
+            td.id AS delivery_id,
+            'native_push'::text AS channel_type,
+            CASE
+              WHEN td.eligibility_status <> 'eligible' OR td.delivery_status = 'suppressed' THEN 'suppressed'
+              ELSE 'pending'
+            END AS status
+          FROM target_deliveries td
+          JOIN LATERAL (
+            SELECT 1
+              FROM native_push_devices npd
+             WHERE npd.user_id = td.user_id
+             LIMIT 1
+          ) active_native ON TRUE
+          WHERE NOT EXISTS (
+            SELECT 1
+              FROM user_notification_channel_configs np
+             WHERE np.user_id = td.user_id
+               AND np.channel_type = 'native_push'
+               AND (np.enabled = FALSE OR np.status = 'disabled')
+          )
+          UNION ALL
+          SELECT
+            td.id AS delivery_id,
+            cfg.channel_type::text AS channel_type,
+            CASE
+              WHEN td.eligibility_status <> 'eligible' OR td.delivery_status = 'suppressed' THEN 'suppressed'
+              ELSE 'pending'
+            END AS status
+          FROM target_deliveries td
+          JOIN user_notification_channel_configs cfg
+            ON cfg.user_id = td.user_id
+           AND cfg.channel_type IN ('sms', 'voice_call')
+           AND cfg.enabled = TRUE
+           AND cfg.status <> 'disabled'
+           AND cfg.address IS NOT NULL
+           AND BTRIM(cfg.address) <> ''
        )
        INSERT INTO user_recommendation_delivery_channels (
          delivery_id,
@@ -619,7 +662,11 @@ async function syncDeliveryChannelStates(
          dc.delivery_id,
          dc.channel_type,
          dc.status,
-         '{}'::jsonb,
+         CASE
+           WHEN dc.channel_type IN ('native_push', 'sms', 'voice_call') AND dc.status = 'suppressed'
+             THEN jsonb_build_object('reason', 'delivery_suppressed')
+           ELSE '{}'::jsonb
+         END,
          NOW(),
          NOW()
        FROM desired_channels dc
@@ -628,6 +675,11 @@ async function syncDeliveryChannelStates(
                WHEN user_recommendation_delivery_channels.status = 'delivered' AND EXCLUDED.status = 'pending'
                  THEN user_recommendation_delivery_channels.status
                ELSE EXCLUDED.status
+             END,
+             metadata = CASE
+               WHEN EXCLUDED.channel_type IN ('native_push', 'sms', 'voice_call') AND EXCLUDED.status = 'suppressed'
+                 THEN user_recommendation_delivery_channels.metadata || jsonb_build_object('reason', 'delivery_suppressed')
+               ELSE user_recommendation_delivery_channels.metadata
              END,
              updated_at = NOW(),
              last_error = CASE
@@ -1130,6 +1182,34 @@ export async function markDeliveryRowsFailed(
   return updatedDeliveryIds.length;
 }
 
+export async function markDeliveryRowsSuppressed(
+  deliveryIds: number[],
+  channel: string,
+  reason: string,
+): Promise<number> {
+  const ids = deliveryIds.filter((id) => Number.isInteger(id) && id > 0);
+  if (ids.length === 0) return 0;
+
+  const result = await query<{ delivery_id: number }>(
+    `UPDATE user_recommendation_delivery_channels
+          SET status = 'suppressed',
+              last_attempt_at = NOW(),
+              last_error = $3,
+              metadata = metadata || jsonb_build_object('reason', $3),
+              updated_at = NOW()
+        WHERE delivery_id = ANY($1::bigint[])
+          AND channel_type = $2
+          AND status <> 'delivered'
+      RETURNING delivery_id`,
+    [ids, channel, reason.slice(0, 1000)],
+  );
+
+  const updatedDeliveryIds = Array.from(new Set(result.rows.map((row) => Number(row.delivery_id))));
+  await recomputeParentDeliveryState(rootQueryExecutor, updatedDeliveryIds);
+
+  return updatedDeliveryIds.length;
+}
+
 export async function getRecommendationDeliveriesByUserId(
   userId: string,
   options: RecommendationDeliveryListOptions = {},
@@ -1386,6 +1466,110 @@ export async function getPendingTelegramDeliveries(limit = 20): Promise<PendingT
     notificationLanguage: row.notification_language === 'en' || row.notification_language === 'both' || row.notification_language === 'vi'
       ? row.notification_language
       : 'vi',
+    recommendationId: row.recommendation_id,
+    matchId: row.match_id,
+    metadata: normalizeMetadata(row.metadata),
+    createdAt: row.created_at,
+    recommendationTimestamp: row.recommendation_timestamp,
+    recommendationMinute: row.recommendation_minute,
+    recommendationScore: row.recommendation_score,
+    recommendationBetType: row.recommendation_bet_type,
+    recommendationSelection: row.recommendation_selection,
+    recommendationBetMarket: row.recommendation_bet_market,
+    recommendationOdds: row.recommendation_odds,
+    recommendationConfidence: row.recommendation_confidence,
+    recommendationValuePercent: row.recommendation_value_percent,
+    recommendationRiskLevel: row.recommendation_risk_level,
+    recommendationStakePercent: row.recommendation_stake_percent,
+    recommendationStakeAmount: row.recommendation_stake_amount,
+    bankrollCurrency: row.bankroll_currency,
+    bankrollUnitMultiplier: row.bankroll_unit_multiplier,
+    bankrollBalanceBefore: row.bankroll_balance_before,
+    bankrollBalanceAfter: row.bankroll_balance_after,
+    recommendationReasoning: row.recommendation_reasoning,
+    recommendationReasoningVi: row.recommendation_reasoning_vi,
+    recommendationWarnings: row.recommendation_warnings,
+    recommendationHomeTeam: row.recommendation_home_team,
+    recommendationAwayTeam: row.recommendation_away_team,
+    recommendationLeague: row.recommendation_league,
+    recommendationStatus: row.recommendation_status,
+    recommendationAiModel: row.recommendation_ai_model,
+    recommendationMode: row.recommendation_mode,
+  }));
+}
+
+export async function getPendingCriticalFallbackDeliveries(
+  channelType: 'native_push' | 'sms' | 'voice_call',
+  limit = 20,
+): Promise<PendingCriticalFallbackDeliveryRow[]> {
+  const safeLimit = Math.max(1, Math.min(limit, 100));
+  const addressJoin = channelType === 'native_push'
+    ? ''
+    : `JOIN user_notification_channel_configs cfg
+        ON cfg.user_id = d.user_id
+       AND cfg.channel_type = c.channel_type
+       AND cfg.enabled = TRUE
+       AND cfg.status <> 'disabled'
+       AND cfg.address IS NOT NULL
+       AND BTRIM(cfg.address) <> ''`;
+  const addressSelect = channelType === 'native_push' ? 'NULL::text AS address' : 'BTRIM(cfg.address) AS address';
+
+  const result = await query<PendingTelegramDeliveryQueryRow & { address: string | null; channel_type: string }>(
+    `SELECT
+        d.id AS delivery_id,
+        d.user_id,
+        ${addressSelect},
+        NULL::text AS chat_id,
+        NULL::text AS notification_language,
+        c.channel_type,
+        d.recommendation_id,
+        d.match_id,
+        d.metadata,
+        d.created_at::text,
+        COALESCE(r.timestamp::text, NULLIF(d.metadata->>'recommendation_timestamp', '')) AS recommendation_timestamp,
+        COALESCE(r.minute, NULLIF(d.metadata->>'recommendation_minute', '')::integer) AS recommendation_minute,
+        COALESCE(r.score, NULLIF(d.metadata->>'recommendation_score', '')) AS recommendation_score,
+        COALESCE(r.bet_type, NULLIF(d.metadata->>'recommendation_bet_type', '')) AS recommendation_bet_type,
+        COALESCE(r.selection, NULLIF(d.metadata->>'recommendation_selection', '')) AS recommendation_selection,
+        COALESCE(r.bet_market, NULLIF(d.metadata->>'recommendation_bet_market', '')) AS recommendation_bet_market,
+        COALESCE(r.odds, NULLIF(d.metadata->>'recommendation_odds', '')::numeric) AS recommendation_odds,
+        COALESCE(r.confidence, NULLIF(d.metadata->>'recommendation_confidence', '')::numeric) AS recommendation_confidence,
+        COALESCE(r.value_percent, NULLIF(d.metadata->>'recommendation_value_percent', '')::numeric) AS recommendation_value_percent,
+        COALESCE(r.risk_level, NULLIF(d.metadata->>'recommendation_risk_level', '')) AS recommendation_risk_level,
+        COALESCE(r.stake_percent, NULLIF(d.metadata->>'recommendation_stake_percent', '')::numeric) AS recommendation_stake_percent,
+        NULLIF(d.metadata->>'stake_amount', '')::numeric AS recommendation_stake_amount,
+        NULLIF(d.metadata->>'bankroll_currency', '') AS bankroll_currency,
+        NULLIF(d.metadata->>'bankroll_unit_multiplier', '')::integer AS bankroll_unit_multiplier,
+        NULLIF(d.metadata->>'bankroll_balance_before', '')::numeric AS bankroll_balance_before,
+        NULLIF(d.metadata->>'bankroll_balance_after', '')::numeric AS bankroll_balance_after,
+        COALESCE(r.reasoning, NULLIF(d.metadata->>'recommendation_reasoning', '')) AS recommendation_reasoning,
+        COALESCE(r.reasoning_vi, NULLIF(d.metadata->>'recommendation_reasoning_vi', '')) AS recommendation_reasoning_vi,
+        COALESCE(r.warnings, NULLIF(d.metadata->>'recommendation_warnings', '')) AS recommendation_warnings,
+        COALESCE(r.home_team, NULLIF(d.metadata->>'recommendation_home_team', '')) AS recommendation_home_team,
+        COALESCE(r.away_team, NULLIF(d.metadata->>'recommendation_away_team', '')) AS recommendation_away_team,
+        COALESCE(r.league, NULLIF(d.metadata->>'recommendation_league', '')) AS recommendation_league,
+        r.status AS recommendation_status,
+        r.ai_model AS recommendation_ai_model,
+        r.mode AS recommendation_mode
+      FROM user_recommendation_deliveries d
+      JOIN user_recommendation_delivery_channels c
+        ON c.delivery_id = d.id
+       AND c.channel_type = $1
+       AND c.status = 'pending'
+      ${addressJoin}
+      LEFT JOIN recommendations r
+        ON r.id = d.recommendation_id
+      WHERE d.eligibility_status = 'eligible'
+      ORDER BY d.created_at ASC, d.id ASC
+      LIMIT $2`,
+    [channelType, safeLimit],
+  );
+
+  return result.rows.map((row) => ({
+    deliveryId: row.delivery_id,
+    userId: row.user_id,
+    address: row.address,
+    channelType: row.channel_type === 'sms' || row.channel_type === 'voice_call' ? row.channel_type : 'native_push',
     recommendationId: row.recommendation_id,
     matchId: row.match_id,
     metadata: normalizeMetadata(row.metadata),

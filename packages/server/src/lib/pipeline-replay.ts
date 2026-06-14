@@ -339,9 +339,7 @@ export async function runReplayScenario(
   const shadowMode = options.shadowMode !== false;
   const sampleProviderData = options.sampleProviderData === true;
 
-  const dependencies: NonNullable<Parameters<typeof runPipelineForFixture>[3]>['dependencies'] = {
-    fetchFixtureStatistics: async () => scenario.statistics ?? [],
-    fetchFixtureEvents: async () => scenario.events ?? [],
+  const dependencies: NonNullable<NonNullable<Parameters<typeof runPipelineForFixture>[3]>['dependencies']> = {
     lookupPerformanceMemory: buildReplayPerformanceMemoryLookup(scenario),
     ensureMatchInsight: async () => ({
       fixture: { payload: scenario.fixture, freshness: 'fresh', cacheStatus: 'hit', cachedAt: null, fetchedAt: null, degraded: false },
