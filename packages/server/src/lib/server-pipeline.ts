@@ -25,6 +25,7 @@ import {
   getRecommendationsByMatchId,
   markRecommendationNotified,
 } from '../repos/recommendations.repo.js';
+import * as matchRepo from '../repos/matches.repo.js';
 import { createAiPerformanceRecord } from '../repos/ai-performance.repo.js';
 import {
   autoGeneratePerformanceMemoryRules,
@@ -167,13 +168,81 @@ import {
   type LiveOutputDecisionContext,
   type LiveOutputKind,
 } from './live-output-router.js';
-import { enqueueStatsOnlyLiveSignalDeliveries } from '../repos/match-alert-deliveries.repo.js';
+import {
+  enqueueNoSaveLiveInsightDeliveries,
+  enqueueStatsOnlyLiveSignalDeliveries,
+} from '../repos/match-alert-deliveries.repo.js';
 const pipelineSkipAuditCounters = new Map<string, number>();
 
 /** Absolute URL shown in web push body (tap notification still uses same path on the PWA origin). */
 function buildWebPushMatchOpenUrl(baseUrl: string, matchId: string, matchDisplay: string): string {
   const origin = String(baseUrl || '').trim().replace(/\/$/, '') || 'http://localhost:3000';
   return `${origin}/?tab=matches&match=${encodeURIComponent(String(matchId))}&matchDisplay=${encodeURIComponent(matchDisplay)}`;
+}
+
+function insightMinuteBucket(minute: number): number {
+  const safeMinute = Number.isFinite(minute) ? Math.max(0, Math.floor(minute)) : 0;
+  return Math.floor(safeMinute / 10) * 10;
+}
+
+function buildNoSaveInsightTriggerKey(input: {
+  insightType: 'degraded_evidence' | 'policy_blocked';
+  matchId: string;
+  score: string;
+  minute: number;
+}): string {
+  return [
+    'insight',
+    input.insightType,
+    input.matchId,
+    input.score,
+    insightMinuteBucket(input.minute),
+  ].join(':');
+}
+
+function truncateInsightText(value: string, maxLength = 180): string {
+  const text = String(value || '').trim().replace(/\s+/g, ' ');
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, Math.max(0, maxLength - 3)).trim()}...`;
+}
+
+function buildDegradedEvidenceInsightText(input: {
+  evidenceMode: LiveAnalysisEvidenceMode;
+  statsAvailable: boolean;
+  oddsAvailable: boolean;
+  eventCount: number;
+}): { summaryEn: string; summaryVi: string; reasons: string[] } {
+  const reasons = [
+    `evidence_mode=${input.evidenceMode}`,
+    `stats_available=${input.statsAvailable}`,
+    `odds_available=${input.oddsAvailable}`,
+    `event_count=${input.eventCount}`,
+  ];
+  return {
+    summaryEn: 'No actionable bet: live evidence is incomplete. TFI has odds/events context, but live statistics are missing or insufficient, so this is a watch insight only.',
+    summaryVi: 'Khong co keo actionable: du lieu live chua day du. TFI co ngu canh odds/event nhung thieu hoac yeu live stats, nen day chi la nhan dinh theo doi.',
+    reasons,
+  };
+}
+
+function buildPolicyBlockedInsightText(input: {
+  selection: string;
+  betMarket: string;
+  policyWarnings: string[];
+  diagnostic: string;
+}): { summaryEn: string; summaryVi: string; reasons: string[]; marketFamilyHint: string | null } {
+  const candidate = truncateInsightText([input.selection, input.betMarket].filter(Boolean).join(' | '), 120);
+  const warningText = truncateInsightText(input.policyWarnings.join('; ') || input.diagnostic || 'policy_blocked', 140);
+  return {
+    summaryEn: `No actionable bet: TFI reviewed${candidate ? ` ${candidate}` : ' a candidate'}, but policy guard blocked it. Reason: ${warningText}.`,
+    summaryVi: `Khong co keo actionable: TFI da xem xet${candidate ? ` ${candidate}` : ' mot candidate'} nhung policy guard da chan. Ly do: ${warningText}.`,
+    reasons: [
+      'policy_blocked',
+      ...input.policyWarnings.slice(0, 5),
+      input.diagnostic ? `diagnostic=${input.diagnostic}` : '',
+    ].filter(Boolean),
+    marketFamilyHint: input.betMarket || null,
+  };
 }
 
 function shouldSamplePipelineSkipAudit(reason: string, stage: string, sampleEvery: number): boolean {
@@ -476,6 +545,7 @@ const defaultPipelineDeps = {
   getEligibleDeliveryUserIds,
   markRecommendationDeliveriesDelivered,
   stageAnalysisSignalDeliveries,
+  enqueueNoSaveLiveInsightDeliveries,
   enqueueStatsOnlyLiveSignalDeliveries,
 };
 
@@ -940,6 +1010,7 @@ export interface MatchPipelineResult {
     runtimePolicyShadow?: RuntimePolicyShadowSignal;
     runtimePolicyPromotion?: RuntimePolicyProductionPromotionDecision;
     shadowCandidate?: Record<string, unknown>;
+    noSaveLiveInsight?: Record<string, unknown>;
     saveIntegrityStatus?: 'not_attempted' | 'ok' | 'blocked';
     saveBlockedReason?: string;
     saveProviderCoverageStatus?: RecommendationSaveIntegrityResult['providerCoverageStatus'];
@@ -4155,6 +4226,7 @@ async function processMatch(
         homeTeam: homeName,
         awayTeam: awayName,
         kickoffTimestamp: liveFixture.kickoff.timestamp ?? undefined,
+        leagueId: liveFixture.league.id ?? undefined,
         leagueName: liveFixture.league.name,
         leagueCountry: liveFixture.league.country ?? undefined,
         status,
@@ -4709,6 +4781,7 @@ async function processMatch(
             highPriority: true,
             favoriteLeague: true,
             leagueCountry: leagueMeta.country ?? null,
+            matchId,
           },
         );
         if (
@@ -5003,6 +5076,107 @@ async function processMatch(
         options.settledReplayApprovedTrace === true && options.applySettledReplayPolicy !== true,
     };
     const referenceMarketKeys = Object.keys(referenceOddsCanonical ?? {}).sort();
+    const emitNoSaveLiveInsight = async (input: {
+      insightType: 'degraded_evidence' | 'policy_blocked';
+      summaryEn: string;
+      summaryVi: string;
+      reasons: string[];
+      llmCalled: boolean;
+      marketFamilyHint?: string | null;
+      severity?: 'medium' | 'high';
+    }): Promise<{
+      deliveryResult: { enqueued: number; deliveryIds: number[] };
+      outputDecision: LiveOutputDecisionContext;
+    }> => {
+      if (shadowMode || advisoryOnly) {
+        const outputDecision = routeLiveOutput({
+          evidenceMode,
+          llmCalled: input.llmCalled,
+          watchInsightTriggered: true,
+          watchInsightEnqueued: 0,
+          advisoryOnly,
+          shadowMode,
+        });
+        return { deliveryResult: { enqueued: 0, deliveryIds: [] }, outputDecision };
+      }
+
+      const triggerKey = buildNoSaveInsightTriggerKey({
+        insightType: input.insightType,
+        matchId,
+        score,
+        minute,
+      });
+      const deliveryResult = await deps.enqueueNoSaveLiveInsightDeliveries({
+        matchId,
+        homeTeam: homeName,
+        awayTeam: awayName,
+        league,
+        status,
+        minute,
+        score,
+        kickoffAtUtc: null,
+        insightType: input.insightType,
+        triggerKey,
+        summaryEn: input.summaryEn,
+        summaryVi: input.summaryVi,
+        evidenceMode,
+        reasons: input.reasons,
+        severity: input.severity,
+        marketFamilyHint: input.marketFamilyHint,
+      }).catch((error) => {
+        audit({
+          category: 'PIPELINE',
+          action: 'NO_SAVE_LIVE_INSIGHT_EMIT_FAILED',
+          outcome: 'FAILURE',
+          actor: 'auto-pipeline',
+          error: error instanceof Error ? error.message : String(error),
+          metadata: {
+            matchId,
+            matchDisplay,
+            insightType: input.insightType,
+            triggerKey,
+            evidenceMode,
+            contract: 'no-save-live-insight-v1',
+          },
+        });
+        return { enqueued: 0, deliveryIds: [] };
+      });
+      const outputDecision = routeLiveOutput({
+        evidenceMode,
+        llmCalled: input.llmCalled,
+        watchInsightTriggered: true,
+        watchInsightEnqueued: deliveryResult.enqueued,
+        advisoryOnly,
+        shadowMode,
+      });
+      audit({
+        category: 'PIPELINE',
+        action: 'NO_SAVE_LIVE_INSIGHT_EMITTED',
+        outcome: deliveryResult.enqueued > 0 ? 'SUCCESS' : 'SKIPPED',
+        actor: 'auto-pipeline',
+        metadata: {
+          matchId,
+          matchDisplay,
+          minute,
+          score,
+          status,
+          insightType: input.insightType,
+          triggerKey,
+          evidenceMode,
+          reasons: input.reasons,
+          enqueued: deliveryResult.enqueued,
+          deliveryIds: deliveryResult.deliveryIds,
+          savedRecommendation: false,
+          llmCalled: input.llmCalled,
+          outputKind: outputDecision.outputKind,
+          auditBucket: outputDecision.auditBucket,
+          outputDecision,
+          contract: 'no-save-live-insight-v1',
+          ...providerDebugMetadata,
+        },
+      });
+      return { deliveryResult, outputDecision };
+    };
     if (
       !shadowMode
       && !advisoryOnly
@@ -5549,6 +5723,82 @@ async function processMatch(
         };
       }
 
+      if (
+        !shadowMode
+        && !advisoryOnly
+        && llmEligibility.reason === 'degraded_evidence'
+        && (evidenceMode === 'odds_events_only_degraded' || evidenceMode === 'events_only_degraded')
+      ) {
+        const insight = buildDegradedEvidenceInsightText({
+          evidenceMode,
+          statsAvailable,
+          oddsAvailable,
+          eventCount: eventsCompact.length,
+        });
+        const { deliveryResult, outputDecision } = await emitNoSaveLiveInsight({
+          insightType: 'degraded_evidence',
+          summaryEn: insight.summaryEn,
+          summaryVi: insight.summaryVi,
+          reasons: insight.reasons,
+          llmCalled: false,
+          marketFamilyHint: oddsAvailable ? 'provider_coverage' : 'events_state',
+        });
+
+        return {
+          matchId,
+          matchDisplay,
+          homeName,
+          awayName,
+          league,
+          minute,
+          score,
+          status,
+          success: true,
+          decisionKind: 'condition_only',
+          shouldPush: deliveryResult.enqueued > 0,
+          selection: 'no_save_live_insight',
+          confidence: 0,
+          saved: false,
+          notified: deliveryResult.enqueued > 0,
+          outputKind: outputDecision.outputKind,
+          auditBucket: outputDecision.auditBucket,
+          debug: {
+            analysisRunId,
+            shadowMode,
+            skippedAt: 'llm_eligibility',
+            skipReason: deliveryResult.enqueued > 0
+              ? 'degraded_evidence_insight_emitted'
+              : 'degraded_evidence_insight_no_subscriber_or_deduped',
+            analysisMode,
+            advisoryOnly,
+            oddsSource,
+            oddsAvailable,
+            statsAvailable,
+            statsSource,
+            evidenceMode,
+            statsFallbackUsed,
+            statsFallbackReason: statsFallbackReason || undefined,
+            ...providerDebugMetadata,
+            noSaveLiveInsight: {
+              insightType: 'degraded_evidence',
+              enqueued: deliveryResult.enqueued,
+              deliveryIds: deliveryResult.deliveryIds,
+              savedRecommendation: false,
+              llmCalled: false,
+            } as unknown as Record<string, unknown>,
+            outputDecision,
+            outputKind: outputDecision.outputKind,
+            auditBucket: outputDecision.auditBucket,
+            savedRecommendation: outputDecision.savedRecommendation,
+            settlementEligible: outputDecision.settlementEligible,
+            roiEligible: outputDecision.roiEligible,
+            llmCalled: outputDecision.llmCalled,
+            preLlmLatencyMs: Date.now() - startedAt,
+            totalLatencyMs: Date.now() - startedAt,
+          },
+        };
+      }
+
       return {
         matchId,
         matchDisplay,
@@ -5859,6 +6109,9 @@ async function processMatch(
     let saveBlockedReason: string | undefined = undefined;
     let saveProviderCoverageStatus: RecommendationSaveIntegrityResult['providerCoverageStatus'] | undefined;
     let analysisSignalDeliveriesLoaded = false;
+    let noSaveInsightTriggered = false;
+    let noSaveInsightEnqueued = 0;
+    let noSaveInsightDeliveryIds: number[] = [];
 
     if (
       shouldSave
@@ -6151,6 +6404,33 @@ async function processMatch(
 
     await stageVisibleAnalysisSignal();
 
+    const shouldEmitPolicyNoSaveInsight = activeAnalysis.policyBlocked
+      && (
+        runtimePolicyShadow.matchedPockets.length > 0
+        || Boolean(String(parsed.shadow_candidate?.selection ?? '').trim())
+      );
+
+    if (!saved && !shouldSave && shouldEmitPolicyNoSaveInsight && !shadowMode && !advisoryOnly) {
+      const insight = buildPolicyBlockedInsightText({
+        selection: parsed.selection,
+        betMarket: parsed.bet_market,
+        policyWarnings: activeAnalysis.policyWarnings,
+        diagnostic: parsed.llm_decision_diagnostic,
+      });
+      const emitted = await emitNoSaveLiveInsight({
+        insightType: 'policy_blocked',
+        summaryEn: insight.summaryEn,
+        summaryVi: insight.summaryVi,
+        reasons: insight.reasons,
+        llmCalled: true,
+        marketFamilyHint: insight.marketFamilyHint,
+      });
+      noSaveInsightTriggered = true;
+      noSaveInsightEnqueued = emitted.deliveryResult.enqueued;
+      noSaveInsightDeliveryIds = emitted.deliveryResult.deliveryIds;
+      if (noSaveInsightEnqueued > 0) notified = true;
+    }
+
     // 9. Telegram delivery is intentionally asynchronous. Recommendation rows
     // stage delivery rows inside createRecommendation(); a dedicated delivery
     // job flushes Telegram messages so the live pipeline does not block on
@@ -6245,6 +6525,8 @@ async function processMatch(
       saveBlockedReason,
       runtimePolicyShadowMatched: runtimePolicyShadow.matchedPockets.length > 0,
       shadowCandidatePresent: Boolean(String(parsed.shadow_candidate?.selection ?? '').trim()),
+      watchInsightTriggered: noSaveInsightTriggered,
+      watchInsightEnqueued: noSaveInsightEnqueued,
     });
 
     if (!shadowMode && !advisoryOnly) {
@@ -6287,6 +6569,9 @@ async function processMatch(
           outputKind: outputDecision.outputKind,
           auditBucket: outputDecision.auditBucket,
           outputDecision,
+          noSaveLiveInsightTriggered: noSaveInsightTriggered,
+          noSaveLiveInsightEnqueued: noSaveInsightEnqueued,
+          noSaveLiveInsightDeliveryIds: noSaveInsightDeliveryIds,
           policyBlocked: activeAnalysis.policyBlocked,
           policyWarnings: activeAnalysis.policyWarnings,
           leagueProfileSampleMatches: leagueProfileWindow.sampleMatches,
@@ -6312,7 +6597,9 @@ async function processMatch(
       minute,
       score,
       status,
-      success: true, decisionKind: decisionKindFromParsed(parsed), shouldPush: parsed.should_push,
+      success: true,
+      decisionKind: noSaveInsightTriggered ? 'condition_only' : decisionKindFromParsed(parsed),
+      shouldPush: parsed.should_push || noSaveInsightEnqueued > 0,
       selection: notificationSelection, confidence: notificationConfidence,
       saved, notified,
       outputKind: outputDecision.outputKind,
@@ -6340,6 +6627,13 @@ async function processMatch(
         runtimePolicyShadow,
         runtimePolicyPromotion,
         shadowCandidate: parsed.shadow_candidate as unknown as Record<string, unknown>,
+        noSaveLiveInsight: noSaveInsightTriggered ? {
+          insightType: 'policy_blocked',
+          enqueued: noSaveInsightEnqueued,
+          deliveryIds: noSaveInsightDeliveryIds,
+          savedRecommendation: false,
+          llmCalled: true,
+        } as unknown as Record<string, unknown> : undefined,
         saveIntegrityStatus,
         saveBlockedReason,
         saveProviderCoverageStatus,
@@ -6528,6 +6822,106 @@ export async function runManualAnalysisForMatch(
   });
 }
 
+function matchRowKickoffIso(row: matchRepo.MatchRow): string {
+  const explicit = row.kickoff_at_utc ? Date.parse(row.kickoff_at_utc) : NaN;
+  if (Number.isFinite(explicit)) return new Date(explicit).toISOString();
+
+  const date = String(row.date ?? '').slice(0, 10);
+  const time = String(row.kickoff ?? '00:00:00');
+  const normalizedTime = time.length === 5 ? `${time}:00` : time.slice(0, 8);
+  const parsed = date ? Date.parse(`${date}T${normalizedTime}Z`) : NaN;
+  return Number.isFinite(parsed) ? new Date(parsed).toISOString() : new Date(0).toISOString();
+}
+
+function matchRowSeason(row: matchRepo.MatchRow): number {
+  const parsed = Date.parse(String(row.date ?? ''));
+  return Number.isFinite(parsed) ? new Date(parsed).getUTCFullYear() : new Date().getUTCFullYear();
+}
+
+function fixtureFromMatchRow(row: matchRepo.MatchRow): PipelineProviderFixturePayload {
+  const kickoffIso = matchRowKickoffIso(row);
+  const timestamp = Math.floor(Date.parse(kickoffIso) / 1000);
+  const status = String(row.status || 'UNKNOWN');
+  return {
+    fixture: {
+      id: Number(row.match_id) || 0,
+      referee: row.referee ?? null,
+      timezone: 'UTC',
+      date: kickoffIso,
+      timestamp: Number.isFinite(timestamp) ? timestamp : 0,
+      periods: { first: null, second: null },
+      venue: { id: null, name: row.venue ?? null, city: null },
+      status: { long: status, short: status, elapsed: row.current_minute ?? null },
+    },
+    league: {
+      id: row.league_id,
+      name: row.league_name,
+      country: '',
+      logo: '',
+      flag: null,
+      season: matchRowSeason(row),
+      round: row.round ?? '',
+    },
+    teams: {
+      home: { id: row.home_team_id ?? 0, name: row.home_team, logo: row.home_logo, winner: null },
+      away: { id: row.away_team_id ?? 0, name: row.away_team, logo: row.away_logo, winner: null },
+    },
+    goals: { home: row.home_score ?? 0, away: row.away_score ?? 0 },
+    score: {
+      halftime: { home: row.halftime_home ?? null, away: row.halftime_away ?? null },
+      fulltime: { home: null, away: null },
+      extratime: { home: null, away: null },
+      penalty: { home: null, away: null },
+    },
+  };
+}
+
+async function loadPipelineFixtures(matchIds: string[]): Promise<{
+  fixtures: PipelineProviderFixturePayload[];
+  fallbackMatchIds: string[];
+  fixtureLoadError: string;
+}> {
+  let fixtures: PipelineProviderFixturePayload[] = [];
+  let fixtureLoadError = '';
+  try {
+    fixtures = await ensureFixturesForMatchIds(matchIds, { freshnessMode: 'real_required' });
+  } catch (err) {
+    fixtureLoadError = err instanceof Error ? err.message : String(err);
+  }
+
+  const fixtureMap = new Map(fixtures.map((payload) => [String(payload.fixture?.id), payload]));
+  const missingIds = matchIds.filter((matchId) => !fixtureMap.has(matchId));
+  if (missingIds.length === 0) {
+    return { fixtures, fallbackMatchIds: [], fixtureLoadError };
+  }
+
+  const fallbackRows = await matchRepo.getMatchesByIds(missingIds).catch(() => []);
+  const fallbackFixtures = fallbackRows
+    .filter((row) => missingIds.includes(String(row.match_id)))
+    .map(fixtureFromMatchRow);
+
+  if (fallbackFixtures.length > 0) {
+    audit({
+      category: 'PIPELINE',
+      action: 'PIPELINE_FIXTURE_DB_FALLBACK',
+      outcome: 'SUCCESS',
+      actor: 'auto-pipeline',
+      metadata: {
+        requestedMatchIds: matchIds,
+        fallbackMatchIds: fallbackFixtures.map((payload) => String(payload.fixture.id)),
+        missingIds,
+        fixtureLoadError,
+      },
+    });
+  }
+
+  return {
+    fixtures: [...fixtures, ...fallbackFixtures],
+    fallbackMatchIds: fallbackFixtures.map((payload) => String(payload.fixture.id)),
+    fixtureLoadError,
+  };
+}
+
 /**
  * Run the AI analysis pipeline for a batch of live match IDs.
  * Called by check-live-trigger job when live matches are detected.
@@ -6540,8 +6934,9 @@ export async function runPipelineBatch(matchIds: string[]): Promise<PipelineResu
   const settings = await loadPipelineSettings();
   console.log(`[pipeline] Processing batch of ${matchIds.length} matches: ${matchIds.join(', ')} (telegram: ${settings.telegramEnabled ? 'ENABLED' : 'DISABLED'}, model: ${settings.aiModel})`);
 
-  // Fetch all fixtures in one API call
-  const fixtures = await ensureFixturesForMatchIds(matchIds, { freshnessMode: 'real_required' });
+  // Fetch all fixtures in one API call, with a DB snapshot fallback for
+  // provider-circuit/open-limit windows so secondary providers can still run.
+  const { fixtures, fixtureLoadError } = await loadPipelineFixtures(matchIds);
   const fixtureMap = new Map(fixtures.map((f) => [String(f.fixture?.id), f]));
 
   // Get watchlist entries for metadata
@@ -6563,7 +6958,9 @@ export async function runPipelineBatch(matchIds: string[]): Promise<PipelineResu
       result.results.push({
         matchId, success: false, decisionKind: 'no_bet', shouldPush: false,
         selection: '', confidence: 0, saved: false, notified: false,
-        error: !fixture ? 'Fixture not found' : 'Watchlist entry not found',
+        error: !fixture
+          ? `Fixture not found${fixtureLoadError ? ` (${fixtureLoadError})` : ''}`
+          : 'Watchlist entry not found',
       });
       result.errors++;
       continue;

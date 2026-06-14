@@ -882,7 +882,7 @@ function buildStrategicContextSection(strategicContext: Record<string, unknown> 
   lines.push('STRATEGIC CONTEXT RULES:');
   lines.push('- Treat strategic context as secondary pre-match prior. Live stats/events/odds still dominate.');
   lines.push('- Use structured signals and quantitative priors only; do not infer from missing long-form narrative.');
-  lines.push('- If SOURCE_QUALITY is medium or unknown, use this context as soft guidance only and do NOT boost confidence aggressively.');
+  lines.push('- If SOURCE_QUALITY is low, medium, or unknown, use this context as soft guidance only and do NOT boost confidence aggressively.');
   lines.push('- QUANTITATIVE_PREMATCH_PRIORS are baseline tendencies, not live evidence. Use them to calibrate O/U, BTTS, or AH lean only when live evidence aligns.');
   lines.push('- COMPETITION_TYPE: For european/international/friendly competitions, teams are from DIFFERENT domestic leagues. LEAGUE_POSITIONS CANNOT be compared across leagues - IGNORE position gap signals.');
   lines.push('- LEAGUE_POSITIONS: ONLY for domestic_league matches: Top 3 vs bottom 3 = strong favourite signal. Within 3 places = evenly matched -> AVOID 1X2, prefer O/U or BTTS.');
@@ -992,7 +992,7 @@ function buildStrategicContextSectionCompact(strategicContext: Record<string, un
   lines.push('');
   lines.push('CONTEXT USE RULES:');
   lines.push('- Secondary prior only; live stats/events/odds dominate.');
-  lines.push('- Medium/unknown quality => soft guidance only.');
+  lines.push('- Low/medium/unknown quality => soft guidance only.');
   lines.push('- Use structured fields only; do not infer missing long-form narrative.');
   lines.push('- Quantitative priors help only when live evidence aligns.');
   lines.push('- Cross-league position gaps are invalid outside domestic_league.');

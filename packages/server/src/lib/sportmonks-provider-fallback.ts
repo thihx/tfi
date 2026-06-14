@@ -68,6 +68,7 @@ function sportmonksFixtureToMappingCandidate(fixture: NormalizedSportmonksFixtur
     kickoffAtUtc: fixture.startingAt,
     kickoffTimestamp: fixture.startingAtTimestamp,
     leagueId: fixture.leagueId,
+    leagueName: fixture.leagueName,
     homeName: sides.home?.name ?? '',
     awayName: sides.away?.name ?? '',
   };
@@ -79,14 +80,6 @@ function hasScoreConflict(apiFixture: ApiFixture, sportmonksFixture: NormalizedS
   const apiAway = apiFixture.goals.away;
   if (apiHome == null || apiAway == null || currentScore.home == null || currentScore.away == null) return false;
   return apiHome !== currentScore.home || apiAway !== currentScore.away;
-}
-
-function hasSevereMinuteConflict(apiFixture: ApiFixture, sportmonksFixture: NormalizedSportmonksFixture): boolean {
-  const apiMinute = apiFixture.fixture.status.elapsed;
-  const sportmonksMinute = sportmonksFixture.lengthMinutes;
-  if (apiMinute == null || sportmonksMinute == null) return false;
-  if (apiFixture.fixture.status.short === 'FT' || sportmonksFixture.stateId === 'FT') return false;
-  return Math.abs(apiMinute - sportmonksMinute) > 8;
 }
 
 async function resolveSportmonksFixture(apiFixture: ApiFixture): Promise<{
@@ -189,17 +182,6 @@ export async function fetchSportmonksSupplementForFixture(
         mappingConfidence: resolved.mappingConfidence,
         warnings: ['sportmonks_score_conflict'],
         extraCoverage: { score_conflict: true },
-      });
-    }
-
-    if (hasSevereMinuteConflict(apiFixture, resolved.fixture)) {
-      return unusedSupplement({
-        fixture: resolved.fixture,
-        providerFixtureId: resolved.providerFixtureId,
-        mappingMethod: resolved.mappingMethod,
-        mappingConfidence: resolved.mappingConfidence,
-        warnings: ['sportmonks_minute_conflict'],
-        extraCoverage: { minute_conflict: true },
       });
     }
 

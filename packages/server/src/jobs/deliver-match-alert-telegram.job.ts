@@ -30,6 +30,42 @@ function localized(
   return vi;
 }
 
+function jsonObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function isStatsOnlySignal(row: PendingTelegramMatchAlertRow): boolean {
+  const facts = jsonObject(row.triggerSnapshot.facts);
+  return row.triggerKey.startsWith('stats_only:')
+    || row.metadata.noActionableOdds === true
+    || row.metadata.signalContractVersion === 'odds-first-stats-only-live-signal-v1'
+    || facts.noActionableOdds === true;
+}
+
+function isNoSaveMatchInsight(row: PendingTelegramMatchAlertRow): boolean {
+  const facts = jsonObject(row.triggerSnapshot.facts);
+  return isStatsOnlySignal(row)
+    || row.triggerKey.startsWith('insight:')
+    || row.metadata.notificationKind === 'match_insight'
+    || row.metadata.noActionableBet === true
+    || facts.noActionableBet === true
+    || row.metadata.signalContractVersion === 'no-save-live-insight-v1';
+}
+
+function insightDisclosure(row: PendingTelegramMatchAlertRow, statsOnlySignal: boolean): string {
+  if (statsOnlySignal) {
+    return localized(row.notificationLanguage, 'No live odds available - stats-only insight.', 'Khong co live odds - chi la nhan dinh tu stats.');
+  }
+  const insightType = asString(row.metadata.insightType);
+  if (insightType === 'policy_blocked') {
+    return localized(row.notificationLanguage, 'No actionable bet - policy guard blocked the candidate.', 'Khong co keo actionable - policy guard da chan candidate.');
+  }
+  if (insightType === 'degraded_evidence') {
+    return localized(row.notificationLanguage, 'No actionable bet - limited live evidence.', 'Khong co keo actionable - bang chung live con han che.');
+  }
+  return localized(row.notificationLanguage, 'No actionable bet - match insight only.', 'Khong co keo actionable - chi la nhan dinh tran dau.');
+}
+
 function buildTelegramMatchAlertMessage(row: PendingTelegramMatchAlertRow): string {
   const matchDisplay = asString(row.metadata.matchDisplay) || row.matchId;
   const league = asString(row.metadata.league);
@@ -40,9 +76,15 @@ function buildTelegramMatchAlertMessage(row: PendingTelegramMatchAlertRow): stri
     || asString(row.triggerSnapshot.summaryEn)
     || localized(row.notificationLanguage, 'Alert condition matched.', 'Điều kiện cảnh báo đã thỏa.');
   const action = asString(row.triggerSnapshot.suggestedAction);
-  const heading = row.alertKind === 'match_start'
+  const statsOnlySignal = isStatsOnlySignal(row);
+  const noSaveInsight = isNoSaveMatchInsight(row);
+  const baseHeading = row.alertKind === 'match_start'
     ? localized(row.notificationLanguage, 'MATCH STARTED', 'TRẬN ĐẤU BẮT ĐẦU')
     : localized(row.notificationLanguage, 'LIVE SIGNAL', 'TÍN HIỆU LIVE');
+
+  const heading = row.alertKind !== 'match_start' && noSaveInsight
+    ? localized(row.notificationLanguage, 'MATCH INSIGHT', 'NHAN DINH TRAN DAU')
+    : baseHeading;
 
   const lines = [
     `<b>${safeHtml(heading)}</b>`,
@@ -56,6 +98,10 @@ function buildTelegramMatchAlertMessage(row: PendingTelegramMatchAlertRow): stri
   ].filter(Boolean);
   if (meta.length > 0) lines.push(meta.join(' | '));
   lines.push('');
+  if (noSaveInsight) {
+    lines.push(safeHtml(insightDisclosure(row, statsOnlySignal)));
+    lines.push('');
+  }
   lines.push(safeHtml(summary));
   if (action) {
     lines.push(`${localized(row.notificationLanguage, 'Suggested action', 'Hành động gợi ý')}: ${safeHtml(action)}`);

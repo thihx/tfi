@@ -10,6 +10,10 @@ import * as watchlistRepo from '../repos/watchlist.repo.js';
 import * as matchRepo from '../repos/matches.repo.js';
 import * as snapshotsRepo from '../repos/match-snapshots.repo.js';
 import * as recommendationsRepo from '../repos/recommendations.repo.js';
+import {
+  getLatestStatsOnlySignalDeliveriesByMatchIds,
+  type LatestStatsOnlySignalDeliveryRow,
+} from '../repos/match-alert-deliveries.repo.js';
 import { getSettings } from '../repos/settings.repo.js';
 import { checkCoarseStalenessServer } from '../lib/server-pipeline-gates.js';
 import { reportJobProgress } from './job-progress.js';
@@ -31,6 +35,53 @@ function countPipelineResults(
   );
 }
 
+function hasObjectKeys(value: unknown): boolean {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length > 0);
+}
+
+function hasArrayItems(value: unknown): boolean {
+  return Array.isArray(value) && value.length > 0;
+}
+
+function snapshotHasStatsOrEvents(snapshot: snapshotsRepo.MatchSnapshotRow | null | undefined): boolean {
+  if (!snapshot) return false;
+  return hasObjectKeys(snapshot.stats) || hasArrayItems(snapshot.events);
+}
+
+function snapshotHasUsableOdds(snapshot: snapshotsRepo.MatchSnapshotRow | null | undefined): boolean {
+  return hasObjectKeys(snapshot?.odds);
+}
+
+function minutesSince(value: string | null | undefined, nowMs = Date.now()): number | null {
+  if (!value) return null;
+  const ms = Date.parse(value);
+  if (!Number.isFinite(ms)) return null;
+  return Math.max(0, Math.floor((nowMs - ms) / 60_000));
+}
+
+function shouldOverrideForStatsOnlySignal(input: {
+  snapshot: snapshotsRepo.MatchSnapshotRow | null | undefined;
+  latestSignal: LatestStatsOnlySignalDeliveryRow | null | undefined;
+  cooldownMinutes: number;
+}): { shouldOverride: boolean; reason: string; lastSignalAgeMinutes: number | null } {
+  if (!snapshotHasStatsOrEvents(input.snapshot)) {
+    return { shouldOverride: false, reason: 'no_stats_or_events_snapshot', lastSignalAgeMinutes: null };
+  }
+  if (snapshotHasUsableOdds(input.snapshot)) {
+    return { shouldOverride: false, reason: 'snapshot_has_odds', lastSignalAgeMinutes: null };
+  }
+
+  const age = minutesSince(input.latestSignal?.createdAt);
+  if (age == null) {
+    return { shouldOverride: true, reason: 'stats_only_no_prior_signal', lastSignalAgeMinutes: null };
+  }
+  const cooldown = Math.max(1, Math.trunc(input.cooldownMinutes));
+  if (age >= cooldown) {
+    return { shouldOverride: true, reason: 'stats_only_signal_cooldown_elapsed', lastSignalAgeMinutes: age };
+  }
+  return { shouldOverride: false, reason: 'stats_only_signal_cooldown_active', lastSignalAgeMinutes: age };
+}
+
 export async function checkLiveTriggerJob(): Promise<{
   liveCount: number;
   candidateCount?: number;
@@ -40,12 +91,19 @@ export async function checkLiveTriggerJob(): Promise<{
   skipped?: boolean;
   skipReason?: string;
   openUntil?: string;
+  apiFootballCircuitOpen?: boolean;
+  apiFootballCircuitOpenUntil?: string;
 }> {
   const JOB = 'check-live-trigger';
 
   const circuitSkip = await skipIfFootballApiCircuitOpen();
   if (circuitSkip) {
-    return { liveCount: 0, ...circuitSkip };
+    await reportJobProgress(
+      JOB,
+      'degraded',
+      `API-Football circuit open until ${circuitSkip.openUntil}; continuing from DB/provider fallback inputs...`,
+      5,
+    );
   }
 
   // 1. Get active watchlist match IDs
@@ -86,49 +144,84 @@ export async function checkLiveTriggerJob(): Promise<{
 
   await reportJobProgress(JOB, 'candidate', `Filtering ${liveMatchIds.length} live matches for significant changes...`, 68);
 
-  const [latestSnapshots, latestRecommendations, rawSettings] = await Promise.all([
+  const [latestSnapshots, latestRecommendations, latestStatsOnlySignalsResult, rawSettings] = await Promise.all([
     snapshotsRepo.getLatestSnapshotsForMatches(liveMatchIds),
     recommendationsRepo.getLatestRecommendationsForMatches(liveMatchIds),
+    getLatestStatsOnlySignalDeliveriesByMatchIds(liveMatchIds)
+      .then((rows) => ({ rows, failed: false }))
+      .catch(() => ({ rows: new Map<string, LatestStatsOnlySignalDeliveryRow>(), failed: true })),
     getSettings().catch(() => ({} as Record<string, unknown>)),
   ]);
+  const latestStatsOnlySignals = latestStatsOnlySignalsResult.rows;
   const reanalyzeMinMinutes = parseNumSetting(
     rawSettings['REANALYZE_MIN_MINUTES'],
     config.pipelineReanalyzeMinMinutes,
   );
+  const statsOnlySignalRecheckMinutes = parseNumSetting(
+    rawSettings['STATS_ONLY_SIGNAL_RECHECK_MINUTES'],
+    config.statsOnlySignalRecheckMinutes,
+  );
 
+  const stalenessDiagnostics: Array<Record<string, unknown>> = [];
   const candidateMatchIds = liveMatchIds.filter((matchId) => {
     const match = matchMap.get(matchId);
     const watchlistEntry = watchlistMap.get(matchId);
     if (!match || !watchlistEntry) return false;
+    const previousSnapshot = latestSnapshots.get(matchId) ?? null;
+    const previousRecommendation = latestRecommendations.get(matchId) ?? null;
 
     const score = `${match.home_score ?? 0}-${match.away_score ?? 0}`;
     const staleness = checkCoarseStalenessServer({
       minute: match.current_minute ?? 0,
       status: match.status,
       score,
-      previousRecommendation: latestRecommendations.get(matchId)
+      previousRecommendation: previousRecommendation
         ? {
-            minute: latestRecommendations.get(matchId)!.minute,
-            odds: latestRecommendations.get(matchId)!.odds,
-            bet_market: latestRecommendations.get(matchId)!.bet_market,
-            selection: latestRecommendations.get(matchId)!.selection,
-            score: latestRecommendations.get(matchId)!.score,
-            status: latestRecommendations.get(matchId)!.status,
+            minute: previousRecommendation.minute,
+            odds: previousRecommendation.odds,
+            bet_market: previousRecommendation.bet_market,
+            selection: previousRecommendation.selection,
+            score: previousRecommendation.score,
+            status: previousRecommendation.status,
           }
         : null,
-      previousSnapshot: latestSnapshots.get(matchId)
+      previousSnapshot: previousSnapshot
         ? {
-            minute: latestSnapshots.get(matchId)!.minute,
-            home_score: latestSnapshots.get(matchId)!.home_score,
-            away_score: latestSnapshots.get(matchId)!.away_score,
-            status: latestSnapshots.get(matchId)!.status,
-            odds: latestSnapshots.get(matchId)!.odds,
+            minute: previousSnapshot.minute,
+            home_score: previousSnapshot.home_score,
+            away_score: previousSnapshot.away_score,
+            status: previousSnapshot.status,
+            odds: previousSnapshot.odds,
           }
         : null,
       settings: { reanalyzeMinMinutes },
       forceAnalyze: false,
     });
-    return !staleness.isStale;
+    const statsOnlyOverride = latestStatsOnlySignalsResult.failed && staleness.isStale
+      ? { shouldOverride: false, reason: 'stats_only_signal_lookup_failed', lastSignalAgeMinutes: null }
+      : staleness.isStale
+      ? shouldOverrideForStatsOnlySignal({
+          snapshot: previousSnapshot,
+          latestSignal: latestStatsOnlySignals.get(matchId) ?? null,
+          cooldownMinutes: statsOnlySignalRecheckMinutes,
+        })
+      : { shouldOverride: false, reason: 'not_stale', lastSignalAgeMinutes: null };
+    const selected = !staleness.isStale || statsOnlyOverride.shouldOverride;
+    stalenessDiagnostics.push({
+      matchId,
+      status: match.status,
+      minute: match.current_minute ?? null,
+      score,
+      selected,
+      stalenessReason: staleness.reason,
+      stalenessBaseline: staleness.baseline,
+      statsOnlyOverride: statsOnlyOverride.shouldOverride,
+      statsOnlyOverrideReason: statsOnlyOverride.reason,
+      statsOnlySignalAgeMinutes: statsOnlyOverride.lastSignalAgeMinutes,
+      snapshotHasStatsOrEvents: snapshotHasStatsOrEvents(previousSnapshot),
+      snapshotHasOdds: snapshotHasUsableOdds(previousSnapshot),
+    });
+    return selected;
   });
 
   if (candidateMatchIds.length === 0) {
@@ -141,6 +234,11 @@ export async function checkLiveTriggerJob(): Promise<{
       metadata: {
         liveCount: liveMatchIds.length,
         candidateCount: 0,
+        liveMatchIds,
+        candidateMatchIds: [],
+        skippedMatchIds: liveMatchIds,
+        stalenessDiagnostics,
+        statsOnlyOverrideCandidates: 0,
         batches: 0,
         totalProcessed: 0,
         totalProviderReady: 0,
@@ -158,7 +256,13 @@ export async function checkLiveTriggerJob(): Promise<{
         totalErrors: 0,
       },
     });
-    return { liveCount: liveMatchIds.length, candidateCount: 0, pipelineResults: [] };
+    return {
+      liveCount: liveMatchIds.length,
+      candidateCount: 0,
+      pipelineResults: [],
+      apiFootballCircuitOpen: Boolean(circuitSkip),
+      apiFootballCircuitOpenUntil: circuitSkip?.openUntil,
+    };
   }
 
   await reportJobProgress(JOB, 'pipeline', `Running AI pipeline for ${candidateMatchIds.length} candidate matches...`, 70);
@@ -279,6 +383,11 @@ export async function checkLiveTriggerJob(): Promise<{
     metadata: {
       liveCount: liveMatchIds.length,
       candidateCount: candidateMatchIds.length,
+      liveMatchIds,
+      candidateMatchIds,
+      skippedMatchIds: liveMatchIds.filter((id) => !candidateMatchIds.includes(id)),
+      stalenessDiagnostics,
+      statsOnlyOverrideCandidates: stalenessDiagnostics.filter((row) => row.statsOnlyOverride === true).length,
       batches: batches.length,
       failedBatches,
       failedBatchMatches,
@@ -299,5 +408,13 @@ export async function checkLiveTriggerJob(): Promise<{
     },
   });
 
-  return { liveCount: liveMatchIds.length, candidateCount: candidateMatchIds.length, pipelineResults, failedBatches, failedBatchMatches };
+  return {
+    liveCount: liveMatchIds.length,
+    candidateCount: candidateMatchIds.length,
+    pipelineResults,
+    failedBatches,
+    failedBatchMatches,
+    apiFootballCircuitOpen: Boolean(circuitSkip),
+    apiFootballCircuitOpenUntil: circuitSkip?.openUntil,
+  };
 }

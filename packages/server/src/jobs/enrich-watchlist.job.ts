@@ -11,9 +11,11 @@ import {
   fetchStrategicContext,
   hasUsableStrategicContext,
   type StrategicContext,
+  type StrategicContextFetchOptions,
 } from '../lib/strategic-context.service.js';
 import { config } from '../config.js';
 import { getRedisClient } from '../lib/redis.js';
+import * as favoriteTeamsRepo from '../repos/favorite-teams.repo.js';
 import * as matchRepo from '../repos/matches.repo.js';
 import * as leaguesRepo from '../repos/leagues.repo.js';
 import * as watchlistRepo from '../repos/watchlist.repo.js';
@@ -39,6 +41,7 @@ type EnrichRefreshWindow = 'broad' | 'prematch' | 'final';
 interface EnrichLeagueHints {
   topLeague?: boolean;
   favoriteLeague?: boolean;
+  favoriteTeam?: boolean;
   highPriority?: boolean;
   leagueCountry?: string | null;
 }
@@ -55,6 +58,50 @@ interface StrategicContextMeta {
 type StoredStrategicContext = Partial<StrategicContext> & {
   _meta?: StrategicContextMeta;
 };
+
+interface EnrichWatchlistMetrics {
+  force: boolean;
+  activeWatchlist: number;
+  nsCandidates: number;
+  favoriteScopeCandidates: number;
+  eligible: number;
+  selected: number;
+  maxPerRun: number;
+  droppedByMaxPerRun: number;
+  fetchCalls: number;
+  outcomes: {
+    good: number;
+    poor: number;
+    failed: number;
+    errors: number;
+  };
+  skipped: {
+    notStartedStatus: number;
+    outsideFavoriteScope: number;
+    outsideRefreshWindow: number;
+    usableSameWindow: number;
+    retryAfter: number;
+    maxAttempts: number;
+    noRefreshWindowAtProcess: number;
+    softDeadline: number;
+  };
+  scope: {
+    favoriteLeague: number;
+    favoriteTeam: number;
+    both: number;
+    topLeague: number;
+  };
+  windows: Record<EnrichRefreshWindow, number>;
+  limits: {
+    maxAttemptsPerWindow: number;
+  };
+}
+
+export interface EnrichWatchlistJobResult {
+  checked: number;
+  enriched: number;
+  metrics: EnrichWatchlistMetrics;
+}
 
 /** Force next run to skip the stale-check and re-enrich all active entries. */
 export function setForceEnrich(): void {
@@ -129,6 +176,10 @@ function getRetryAfter(ctx: StoredStrategicContext | null): number | null {
   return Number.isFinite(ts) ? ts : null;
 }
 
+function getFailureCount(ctx: StoredStrategicContext | null): number {
+  return Math.max(0, Number(ctx?._meta?.failure_count ?? 0));
+}
+
 function getTargetRefreshWindow(
   minsToKickoff: number | null | undefined,
   options: EnrichLeagueHints = {},
@@ -149,6 +200,85 @@ function getStoredRefreshWindow(ctx: StoredStrategicContext | null): EnrichRefre
 
 function isFavoriteLeagueSource(addedBy: string | null | undefined): boolean {
   return String(addedBy ?? '').trim().toLowerCase() === 'favorite-league-auto';
+}
+
+function hasFavoriteTeamInMatch(
+  match: matchRepo.MatchRow | undefined,
+  favoriteTeamIds: Set<string>,
+): boolean {
+  if (!match || favoriteTeamIds.size === 0) return false;
+  return (match.home_team_id != null && favoriteTeamIds.has(String(match.home_team_id)))
+    || (match.away_team_id != null && favoriteTeamIds.has(String(match.away_team_id)));
+}
+
+function buildEnrichHints(
+  entry: watchlistRepo.WatchlistRow,
+  match: matchRepo.MatchRow | undefined,
+  leagueMeta: leaguesRepo.LeagueRow | undefined | null,
+  favoriteTeamIds: Set<string>,
+): EnrichLeagueHints & { inFavoriteScope: boolean } {
+  const topLeague = leagueMeta?.top_league === true;
+  const favoriteLeague = topLeague || isFavoriteLeagueSource(entry.added_by);
+  const favoriteTeam = hasFavoriteTeamInMatch(match, favoriteTeamIds);
+  return {
+    topLeague,
+    favoriteLeague,
+    favoriteTeam,
+    highPriority: favoriteLeague || favoriteTeam,
+    leagueCountry: leagueMeta?.country ?? null,
+    inFavoriteScope: favoriteLeague || favoriteTeam,
+  };
+}
+
+function createEnrichMetrics(force: boolean, activeWatchlist: number): EnrichWatchlistMetrics {
+  return {
+    force,
+    activeWatchlist,
+    nsCandidates: 0,
+    favoriteScopeCandidates: 0,
+    eligible: 0,
+    selected: 0,
+    maxPerRun: 0,
+    droppedByMaxPerRun: 0,
+    fetchCalls: 0,
+    outcomes: {
+      good: 0,
+      poor: 0,
+      failed: 0,
+      errors: 0,
+    },
+    skipped: {
+      notStartedStatus: 0,
+      outsideFavoriteScope: 0,
+      outsideRefreshWindow: 0,
+      usableSameWindow: 0,
+      retryAfter: 0,
+      maxAttempts: 0,
+      noRefreshWindowAtProcess: 0,
+      softDeadline: 0,
+    },
+    scope: {
+      favoriteLeague: 0,
+      favoriteTeam: 0,
+      both: 0,
+      topLeague: 0,
+    },
+    windows: {
+      broad: 0,
+      prematch: 0,
+      final: 0,
+    },
+    limits: {
+      maxAttemptsPerWindow: Math.max(1, Math.trunc(config.strategicContextMaxAttemptsPerWindow)),
+    },
+  };
+}
+
+function recordFavoriteScope(metrics: EnrichWatchlistMetrics, hints: EnrichLeagueHints): void {
+  if (hints.favoriteLeague) metrics.scope.favoriteLeague++;
+  if (hints.favoriteTeam) metrics.scope.favoriteTeam++;
+  if (hints.favoriteLeague && hints.favoriteTeam) metrics.scope.both++;
+  if (hints.topLeague) metrics.scope.topLeague++;
 }
 
 function pickBackoffMinutes(
@@ -265,7 +395,8 @@ function buildRetryContext(
 ): StoredStrategicContext {
   const existing = current ?? null;
   const usable = hasUsableContext(existing, options);
-  const previousFailures = Math.max(0, Number(existing?._meta?.failure_count ?? 0));
+  const existingWindow = getStoredRefreshWindow(existing);
+  const previousFailures = existingWindow === refreshWindow ? getFailureCount(existing) : 0;
   const failureCount = previousFailures + 1;
   const retryMinutes = pickBackoffMinutes(kind, failureCount, options);
   const retryAfter = new Date(Date.parse(attemptedAt) + retryMinutes * 60 * 1000).toISOString();
@@ -322,12 +453,13 @@ async function persistRetryState(
   await watchlistRepo.updateOperationalWatchlistEntry(entry.match_id, updateFields);
 }
 
-export async function enrichWatchlistJob(): Promise<{ checked: number; enriched: number }> {
+export async function enrichWatchlistJob(): Promise<EnrichWatchlistJobResult> {
   const JOB = 'enrich-watchlist';
 
   await reportJobProgress(JOB, 'load', 'Loading matches and watchlist...', 5);
   const allMatches = await matchRepo.getAllMatches();
   const allLeagues = await leaguesRepo.getAllLeagues().catch(() => []);
+  const favoriteTeamIds = await favoriteTeamsRepo.getFavoriteTeamIds().catch(() => new Set<string>());
   const statusMap = new Map<string, string>();
   const matchMap = new Map(allMatches.map((match) => [match.match_id, match] as const));
   const leagueMap = new Map(allLeagues.map((league) => [league.league_id, league] as const));
@@ -341,11 +473,16 @@ export async function enrichWatchlistJob(): Promise<{ checked: number; enriched:
     (settings as Record<string, unknown>).AUTO_APPLY_RECOMMENDED_CONDITION !== false;
   if (watchlist.length === 0) {
     console.log('[enrichWatchlistJob] Watchlist empty, skip.');
-    return { checked: 0, enriched: 0 };
+    return {
+      checked: 0,
+      enriched: 0,
+      metrics: createEnrichMetrics(false, 0),
+    };
   }
 
   const force = await consumeForceEnrich();
   if (force) console.log('[enrichWatchlistJob] Force mode - skipping stale check');
+  const metrics = createEnrichMetrics(force, watchlist.length);
 
   const now = Date.now();
   const kickoffMinutesByMatchId = force
@@ -356,57 +493,74 @@ export async function enrichWatchlistJob(): Promise<{ checked: number; enriched:
     );
   const eligible = watchlist.filter((entry) => {
     const matchStatus = statusMap.get(entry.match_id)?.toUpperCase() ?? '';
-    if (matchStatus !== 'NS' && matchStatus !== '') return false;
-    if (force) return true;
-
     const ctx = (entry.strategic_context as StoredStrategicContext | null) ?? null;
     const match = matchMap.get(entry.match_id);
     const leagueMeta = match?.league_id != null ? leagueMap.get(match.league_id) : null;
-    const favoriteLeague = isFavoriteLeagueSource(entry.added_by);
-    const topLeague = leagueMeta?.top_league === true;
-    const hints: EnrichLeagueHints = {
-      topLeague,
-      favoriteLeague,
-      highPriority: topLeague || favoriteLeague,
-      leagueCountry: leagueMeta?.country ?? null,
-    };
-    const minsToKickoff = kickoffMinutesByMatchId.get(entry.match_id);
-    const targetWindow = getTargetRefreshWindow(minsToKickoff, hints);
-    if (!targetWindow) return false;
+    const hints = buildEnrichHints(entry, match, leagueMeta, favoriteTeamIds);
+    if (matchStatus !== 'NS' && matchStatus !== '') {
+      metrics.skipped.notStartedStatus++;
+      return false;
+    }
+    metrics.nsCandidates++;
+    if (!hints.inFavoriteScope) {
+      metrics.skipped.outsideFavoriteScope++;
+      return false;
+    }
+    metrics.favoriteScopeCandidates++;
+    recordFavoriteScope(metrics, hints);
+
+    const minsToKickoff = force
+      ? kickoffMinutesByMatchId.get(entry.match_id) ?? null
+      : kickoffMinutesByMatchId.get(entry.match_id);
+    const targetWindow = force
+      ? (hints.topLeague ? 'final' : 'prematch')
+      : getTargetRefreshWindow(minsToKickoff, hints);
+    if (!targetWindow) {
+      metrics.skipped.outsideRefreshWindow++;
+      return false;
+    }
 
     const hasUsable = hasUsableContext(ctx, hints);
     const existingWindow = getStoredRefreshWindow(ctx);
-    if (hasUsable && existingWindow === targetWindow) return false;
+    if (hasUsable && existingWindow === targetWindow) {
+      metrics.skipped.usableSameWindow++;
+      return false;
+    }
 
-    const retryAfter = getRetryAfter(ctx);
-    if (retryAfter && retryAfter > now && existingWindow === targetWindow && !hints.topLeague) return false;
+    if (!force && existingWindow === targetWindow && !hasUsable) {
+      const retryAfter = getRetryAfter(ctx);
+      if (retryAfter && retryAfter > now) {
+        metrics.skipped.retryAfter++;
+        return false;
+      }
+      if (getFailureCount(ctx) >= metrics.limits.maxAttemptsPerWindow) {
+        metrics.skipped.maxAttempts++;
+        return false;
+      }
+    }
 
+    metrics.windows[targetWindow]++;
     return true;
   }).sort((left, right) => {
     const leftMatch = matchMap.get(left.match_id);
     const rightMatch = matchMap.get(right.match_id);
     const leftLeague = leftMatch?.league_id != null ? leagueMap.get(leftMatch.league_id) : null;
     const rightLeague = rightMatch?.league_id != null ? leagueMap.get(rightMatch.league_id) : null;
-    const leftTop = leftLeague?.top_league === true ? 1 : 0;
-    const rightTop = rightLeague?.top_league === true ? 1 : 0;
+    const leftHints = buildEnrichHints(left, leftMatch, leftLeague, favoriteTeamIds);
+    const rightHints = buildEnrichHints(right, rightMatch, rightLeague, favoriteTeamIds);
+    const leftTop = leftHints.topLeague ? 1 : 0;
+    const rightTop = rightHints.topLeague ? 1 : 0;
     if (leftTop !== rightTop) return rightTop - leftTop;
+    const leftFavoriteTeam = leftHints.favoriteTeam ? 1 : 0;
+    const rightFavoriteTeam = rightHints.favoriteTeam ? 1 : 0;
+    if (leftFavoriteTeam !== rightFavoriteTeam) return rightFavoriteTeam - leftFavoriteTeam;
     const leftWindow = getTargetRefreshWindow(
       kickoffMinutesByMatchId.get(left.match_id),
-      {
-        topLeague: leftTop === 1,
-        favoriteLeague: isFavoriteLeagueSource(left.added_by),
-        highPriority: leftTop === 1 || isFavoriteLeagueSource(left.added_by),
-        leagueCountry: leftLeague?.country ?? null,
-      },
+      leftHints,
     );
     const rightWindow = getTargetRefreshWindow(
       kickoffMinutesByMatchId.get(right.match_id),
-      {
-        topLeague: rightTop === 1,
-        favoriteLeague: isFavoriteLeagueSource(right.added_by),
-        highPriority: rightTop === 1 || isFavoriteLeagueSource(right.added_by),
-        leagueCountry: rightLeague?.country ?? null,
-      },
+      rightHints,
     );
     const windowPriority = (value: EnrichRefreshWindow | null) => {
       if (value === 'final') return 3;
@@ -422,7 +576,11 @@ export async function enrichWatchlistJob(): Promise<{ checked: number; enriched:
     return leftKickoff - rightKickoff;
   });
   const maxPerRun = Math.max(1, Math.trunc(config.jobEnrichWatchlistMaxPerRun));
+  metrics.eligible = eligible.length;
+  metrics.maxPerRun = maxPerRun;
   const selected = eligible.slice(0, maxPerRun);
+  metrics.selected = selected.length;
+  metrics.droppedByMaxPerRun = Math.max(0, eligible.length - selected.length);
 
   let checked = 0;
   let enriched = 0;
@@ -432,6 +590,7 @@ export async function enrichWatchlistJob(): Promise<{ checked: number; enriched:
   for (const entry of selected) {
     if (Date.now() - jobStarted > JOB_SOFT_DEADLINE_MS) {
       console.warn(`[enrichWatchlistJob] Soft deadline reached after ${Math.round((Date.now() - jobStarted) / 60_000)}m, stopping early (${checked}/${eligible.length} processed)`);
+      metrics.skipped.softDeadline += Math.max(0, selected.length - checked);
       break;
     }
     checked++;
@@ -445,38 +604,44 @@ export async function enrichWatchlistJob(): Promise<{ checked: number; enriched:
     const attemptedAt = new Date().toISOString();
     const match = matchMap.get(entry.match_id);
     const leagueMeta = match?.league_id != null ? leagueMap.get(match.league_id) : null;
-    const favoriteLeague = isFavoriteLeagueSource(entry.added_by);
-    const topLeague = leagueMeta?.top_league === true;
-    const hints: EnrichLeagueHints = {
-      topLeague,
-      favoriteLeague,
-      highPriority: topLeague || favoriteLeague,
-      leagueCountry: leagueMeta?.country ?? null,
-    };
+    const hints = buildEnrichHints(entry, match, leagueMeta, favoriteTeamIds);
     const minsToKickoff = force
       ? kickoffMinutesByMatchId.get(entry.match_id) ?? null
       : kickoffMinutesByMatchId.get(entry.match_id);
     const refreshWindow = force
       ? (hints.topLeague ? 'final' : 'prematch')
       : getTargetRefreshWindow(minsToKickoff, hints);
-    if (!refreshWindow) continue;
+    if (!refreshWindow) {
+      metrics.skipped.noRefreshWindowAtProcess++;
+      continue;
+    }
 
     try {
+      const fetchHints: StrategicContextFetchOptions = {
+        topLeague: hints.topLeague,
+        favoriteLeague: hints.favoriteLeague,
+        highPriority: hints.highPriority,
+        leagueCountry: hints.leagueCountry,
+        matchId: entry.match_id,
+      };
+      metrics.fetchCalls++;
       const context = await fetchStrategicContext(
         entry.home_team,
         entry.away_team,
         entry.league,
         entry.date,
-        hints,
+        fetchHints,
       );
 
       if (!context) {
+        metrics.outcomes.failed++;
         await persistRetryState(entry, 'failed', attemptedAt, refreshWindow, null, 'empty_response', hints);
         await sleep(API_DELAY_MS);
         continue;
       }
 
       if (!hasUsableContext(context, hints)) {
+        metrics.outcomes.poor++;
         await persistRetryState(entry, 'poor', attemptedAt, refreshWindow, context, '', hints);
         await sleep(API_DELAY_MS);
         continue;
@@ -526,9 +691,11 @@ export async function enrichWatchlistJob(): Promise<{ checked: number; enriched:
         );
       }
       enriched++;
+      metrics.outcomes.good++;
       console.log(`[enrichWatchlistJob] Enriched ${entry.home_team} vs ${entry.away_team}`);
     } catch (err) {
       console.error(`[enrichWatchlistJob] Error for match ${entry.match_id}:`, err);
+      metrics.outcomes.errors++;
       await persistRetryState(
         entry,
         'failed',
@@ -544,5 +711,5 @@ export async function enrichWatchlistJob(): Promise<{ checked: number; enriched:
   }
 
   console.log(`[enrichWatchlistJob] Checked ${checked}/${eligible.length} eligible, enriched ${enriched}`);
-  return { checked, enriched };
+  return { checked, enriched, metrics };
 }

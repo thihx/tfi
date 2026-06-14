@@ -124,6 +124,8 @@ const DELIVERY_BUCKETS = new Set([
   'delivery_staged',
   'delivery_no_target',
   'delivery_failed',
+  'watch_insight_emitted',
+  'watch_insight_no_subscriber',
 ]);
 
 function clampPositiveInt(value: number, min: number, max: number): number {
@@ -186,7 +188,8 @@ function inferLegacyRoute(outputKind: LiveOutputKind | 'unknown', outputDecision
   if (explicit) return explicit;
   if (outputKind === 'money_recommendation') return 'money_path';
   if (outputKind === 'stats_only_signal') return 'stats_only_path';
-  if (outputKind === 'watch_insight' || outputKind === 'shadow_candidate') return 'shadow_path';
+  if (outputKind === 'watch_insight') return 'watch_insight_path';
+  if (outputKind === 'shadow_candidate') return 'shadow_path';
   if (outputKind === 'no_action') return 'no_action_path';
   return 'unknown';
 }

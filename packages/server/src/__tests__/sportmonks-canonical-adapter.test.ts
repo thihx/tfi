@@ -286,6 +286,35 @@ describe('sportmonks canonical adapter', () => {
     expect(validateProviderEnvelope(envelope)).toMatchObject({ ok: true });
   });
 
+  it('canonicalizes thin Sportmonks live statistics that only contain type ids', () => {
+    const fixture = sportmonksFixture({
+      statistics: [
+        { participant_id: 10, type_id: 34, data: { value: 3 } },
+        { participant_id: 20, type_id: 34, data: { value: 1 } },
+        { participant_id: 10, type_id: 42, data: { value: 6 } },
+        { participant_id: 20, type_id: 42, data: { value: 5 } },
+        { participant_id: 10, type_id: 45, data: { value: 59 } },
+        { participant_id: 20, type_id: 45, data: { value: 41 } },
+        { participant_id: 10, type_id: 84, data: { value: 1 } },
+        { participant_id: 20, type_id: 86, data: { value: 2 } },
+      ],
+    });
+
+    const stats = sportmonksFixtureToCanonicalStatistics(fixture);
+
+    expect(stats).toMatchObject({
+      corners: { home: 3, away: 1 },
+      shotsTotal: { home: 6, away: 5 },
+      possessionPct: { home: 59, away: 41 },
+      yellowCards: { home: 1, away: null },
+      shotsOnTarget: { home: null, away: 2 },
+    });
+    expect(buildSportmonksStatisticsEnvelope(fixture).coverage).toMatchObject({
+      level: 'complete',
+      itemCount: 8,
+    });
+  });
+
   it('builds canonical live odds snapshots and marks missing odds entitlement explicitly', () => {
     const snapshot = sportmonksFixtureToCanonicalOddsSnapshot(sportmonksFixture(), {
       matchId: '164327',
@@ -570,7 +599,7 @@ describe('sportmonks canonical adapter', () => {
       matchId: '98765',
       league: {
         id: '111',
-        name: 'Mexico',
+        name: 'FIFA World Cup',
         country: null,
         logo: null,
       },

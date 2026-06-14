@@ -28,6 +28,7 @@ export interface NormalizedSportmonksFixture {
   providerFixtureId: string;
   name: string;
   leagueId: string | null;
+  leagueName: string | null;
   seasonId: string | null;
   stateId: string | null;
   startingAt: string | null;
@@ -116,6 +117,13 @@ function nestedRecord(value: unknown, key: string): Record<string, unknown> | nu
   return recordOf(recordOf(value)?.[key]);
 }
 
+function recordName(value: unknown): string | null {
+  const row = recordOf(value);
+  return stringOrNull(row?.name)
+    ?? stringOrNull(row?.display_name)
+    ?? stringOrNull(row?.code);
+}
+
 function numberValue(value: unknown): number | null {
   if (typeof value === 'string' && value.trim().endsWith('%')) {
     const pct = Number(value.trim().slice(0, -1));
@@ -132,6 +140,7 @@ export function normalizeSportmonksFixture(input: SportmonksFixtureLike): Normal
     providerFixtureId,
     name: stringOrNull(input.name) ?? '',
     leagueId: stringOrNull(input.league_id),
+    leagueName: recordName(input.league),
     seasonId: stringOrNull(input.season_id),
     stateId: stringOrNull(input.state_id),
     startingAt: stringOrNull(input.starting_at),
@@ -206,9 +215,23 @@ function statTypeName(row: Record<string, unknown>): string {
     ?? stringOrNull(type?.code)
     ?? stringOrNull(row.name)
     ?? stringOrNull(row.type)
+    ?? SPORTMONKS_STAT_TYPE_NAME_BY_ID[stringOrNull(row.type_id) ?? '']
     ?? stringOrNull(row.type_id)
     ?? '';
 }
+
+const SPORTMONKS_STAT_TYPE_NAME_BY_ID: Record<string, string> = {
+  '34': 'Corners',
+  '42': 'Shots Total',
+  '43': 'Attacks',
+  '44': 'Dangerous Attacks',
+  '45': 'Ball Possession',
+  '56': 'Fouls',
+  '80': 'Passes',
+  '83': 'Red Cards',
+  '84': 'Yellow Cards',
+  '86': 'Shots On Target',
+};
 
 function statValue(row: Record<string, unknown>): string | number | null {
   const data = recordOf(row.data);
@@ -235,7 +258,9 @@ function translateStatType(value: string): string {
     fouls: 'Fouls',
     offsides: 'Offsides',
     'yellow cards': 'Yellow Cards',
+    yellowcards: 'Yellow Cards',
     'red cards': 'Red Cards',
+    redcards: 'Red Cards',
     'goalkeeper saves': 'Goalkeeper Saves',
     saves: 'Goalkeeper Saves',
     'blocked shots': 'Blocked Shots',

@@ -71,6 +71,28 @@ describe('live output router', () => {
     });
   });
 
+  test('routes no-save watch insight as match alert without settlement eligibility', () => {
+    const result = routeLiveOutput({
+      evidenceMode: 'odds_events_only_degraded',
+      llmCalled: false,
+      watchInsightTriggered: true,
+      watchInsightEnqueued: 1,
+    });
+
+    expect(result).toMatchObject({
+      outputKind: 'watch_insight',
+      route: 'watch_insight_path',
+      auditBucket: 'watch_insight_emitted',
+      finalOutcome: 'notified',
+      userVisible: true,
+      savedRecommendation: false,
+      settlementEligible: false,
+      roiEligible: false,
+      deliveryKind: 'match_alert',
+      deliveryStatus: 'staged',
+    });
+  });
+
   test('routes policy blocked candidates as shadow candidates', () => {
     const result = routeLiveOutput({
       evidenceMode: 'full_live_data',

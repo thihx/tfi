@@ -43,7 +43,7 @@ const DEFAULT_FIXTURE_INCLUDES = [
   'state',
   'scores',
   'events',
-  'statistics',
+  'statistics.type',
   'periods',
 ].join(';');
 

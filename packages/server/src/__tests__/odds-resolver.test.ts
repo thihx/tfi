@@ -5,6 +5,10 @@ vi.mock('../lib/football-api.js', () => ({
   fetchPreMatchOdds: vi.fn(),
 }));
 
+vi.mock('../lib/the-odds-api.js', () => ({
+  fetchTheOddsApiOdds: vi.fn(),
+}));
+
 vi.mock('../lib/provider-sampling.js', () => ({
   extractStatusCode: vi.fn(() => null),
   recordProviderOddsSampleSafe: vi.fn().mockResolvedValue(undefined),
@@ -181,6 +185,11 @@ describe('summarizeNormalizedOdds', () => {
 describe('resolveMatchOdds', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    delete process.env['THEODDSAPI_ENABLED'];
+    delete process.env['THEODDSAPI_API_TOKEN'];
+    delete process.env['THEODDSAPI_MARKETS'];
+    delete process.env['THEODDSAPI_REGIONS'];
+    delete process.env['THEODDSAPI_SOCCER_SPORT_KEY'];
   });
 
   test('uses normalized live odds before pre-match', async () => {
@@ -299,6 +308,157 @@ describe('resolveMatchOdds', () => {
     expect(result.response).toEqual([]);
     expect(result.referenceOddsSource).toBe('reference-prematch');
     expect(result.referenceResponse).toHaveLength(1);
+  });
+
+  test('uses The Odds API as live fallback when API-Football live odds are empty', async () => {
+    const footballApi = await import('../lib/football-api.js');
+    const theOddsApi = await import('../lib/the-odds-api.js');
+    const cacheRepo = await import('../repos/provider-odds-cache.repo.js');
+
+    process.env['THEODDSAPI_ENABLED'] = 'true';
+    process.env['THEODDSAPI_API_TOKEN'] = 'test-token';
+    process.env['THEODDSAPI_MARKETS'] = 'h2h,spreads,totals,btts';
+    vi.mocked(footballApi.fetchLiveOdds).mockResolvedValueOnce([] as never);
+    vi.mocked(theOddsApi.fetchTheOddsApiOdds).mockResolvedValueOnce({
+      data: [{
+        id: 'odds-1505466',
+        sport_key: 'soccer_chile_campeonato',
+        sport_title: 'Primera Division - Chile',
+        commence_time: '2026-06-14T19:02:00Z',
+        home_team: 'Union La Calera',
+        away_team: 'Universidad de Chile',
+        bookmakers: [{
+          key: 'pinnacle',
+          title: 'Pinnacle',
+          markets: [
+            {
+              key: 'h2h',
+              outcomes: [
+                { name: 'Union La Calera', price: 5.5 },
+                { name: 'Draw', price: 4.1 },
+                { name: 'Universidad de Chile', price: 1.62 },
+              ],
+            },
+            {
+              key: 'totals',
+              outcomes: [
+                { name: 'Over', price: 1.86, point: 3.5 },
+                { name: 'Under', price: 1.96, point: 3.5 },
+              ],
+            },
+            {
+              key: 'spreads',
+              outcomes: [
+                { name: 'Union La Calera', price: 1.95, point: 0.75 },
+                { name: 'Universidad de Chile', price: 1.88, point: -0.75 },
+              ],
+            },
+          ],
+        }],
+      }],
+      raw: [],
+      statusCode: 200,
+      latencyMs: 25,
+      quota: { requestsRemaining: 99, requestsUsed: 1, requestsLast: 9 },
+    } as never);
+
+    const result = await resolveMatchOdds({
+      matchId: '1505466',
+      status: '1H',
+      matchMinute: 45,
+      homeTeam: 'Union La Calera',
+      awayTeam: 'Universidad de Chile',
+      kickoffTimestamp: 1781463720,
+      leagueName: 'Primera División',
+      leagueCountry: 'Chile',
+      freshnessMode: 'real_required',
+      consumer: 'server-pipeline',
+    });
+
+    expect(result.oddsSource).toBe('fallback-live');
+    expect(result.cacheStatus).toBe('refreshed');
+    expect(result.response).toEqual([expect.objectContaining({
+      bookmakers: [expect.objectContaining({
+        name: 'Pinnacle',
+        bets: expect.arrayContaining([
+          expect.objectContaining({ name: 'Match Winner' }),
+          expect.objectContaining({ name: 'Over/Under' }),
+          expect.objectContaining({ name: 'Asian Handicap' }),
+        ]),
+      })],
+    })]);
+    expect(theOddsApi.fetchTheOddsApiOdds).toHaveBeenCalledWith(expect.objectContaining({
+      sportKey: 'soccer_chile_campeonato',
+      markets: 'h2h,spreads,totals,btts',
+      commenceTimeFrom: '2026-06-14T13:02:00Z',
+      commenceTimeTo: '2026-06-15T01:02:00Z',
+      consumer: 'server-pipeline',
+      jobName: 'server-pipeline',
+    }));
+    expect(footballApi.fetchPreMatchOdds).not.toHaveBeenCalled();
+    expect(cacheRepo.upsertProviderOddsCache).toHaveBeenCalledWith(expect.objectContaining({
+      match_id: '1505466',
+      odds_source: 'fallback-live',
+      provider_source: 'the-odds-live',
+      provider_trace: expect.objectContaining({
+        the_odds_api_resolver_version: 'v1',
+      }),
+    }));
+  });
+
+  test('infers The Odds API sport key from API-Football league id before configured fallback', async () => {
+    const footballApi = await import('../lib/football-api.js');
+    const theOddsApi = await import('../lib/the-odds-api.js');
+
+    process.env['THEODDSAPI_ENABLED'] = 'true';
+    process.env['THEODDSAPI_API_TOKEN'] = 'test-token';
+    process.env['THEODDSAPI_SOCCER_SPORT_KEY'] = 'soccer_fifa_world_cup';
+    vi.mocked(footballApi.fetchLiveOdds).mockResolvedValueOnce([] as never);
+    vi.mocked(theOddsApi.fetchTheOddsApiOdds).mockResolvedValueOnce({
+      data: [{
+        id: 'odds-1505466',
+        sport_key: 'soccer_chile_campeonato',
+        sport_title: 'Primera Division - Chile',
+        commence_time: '2026-06-14T19:02:00Z',
+        home_team: 'Union La Calera',
+        away_team: 'Universidad de Chile',
+        bookmakers: [{
+          key: 'pinnacle',
+          title: 'Pinnacle',
+          markets: [{
+            key: 'h2h',
+            outcomes: [
+              { name: 'Union La Calera', price: 5.5 },
+              { name: 'Draw', price: 4.1 },
+              { name: 'Universidad de Chile', price: 1.62 },
+            ],
+          }],
+        }],
+      }],
+      raw: [],
+      statusCode: 200,
+      latencyMs: 25,
+      quota: { requestsRemaining: 99, requestsUsed: 1, requestsLast: 9 },
+    } as never);
+
+    const result = await resolveMatchOdds({
+      matchId: '1505466',
+      status: '1H',
+      matchMinute: 45,
+      homeTeam: 'Union La Calera',
+      awayTeam: 'Universidad de Chile',
+      kickoffTimestamp: 1781463720,
+      leagueId: 265,
+      leagueName: 'Primera Division',
+      freshnessMode: 'real_required',
+      consumer: 'server-pipeline',
+    });
+
+    expect(result.oddsSource).toBe('fallback-live');
+    expect(theOddsApi.fetchTheOddsApiOdds).toHaveBeenCalledTimes(1);
+    expect(theOddsApi.fetchTheOddsApiOdds).toHaveBeenCalledWith(expect.objectContaining({
+      sportKey: 'soccer_chile_campeonato',
+    }));
   });
 
   test('records final none state when all sources are unusable', async () => {

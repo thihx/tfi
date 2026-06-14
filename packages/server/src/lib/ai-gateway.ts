@@ -149,7 +149,7 @@ async function countRecentEquivalentCalls(context: ReturnType<typeof normalizeCo
          AND feature_key = $3
          AND COALESCE(match_id, '') = COALESCE($4, '')
          AND COALESCE(run_id, '') = COALESCE($5, '')
-         AND status IN ('started', 'succeeded', 'failed')`,
+         AND status = 'started'`,
       [loopWindowMinutes, context.operation, context.featureKey, context.matchId, context.runId],
     );
     return Number(result.rows[0]?.count ?? 0);

@@ -163,6 +163,23 @@ describe('sportmonks-api', () => {
     }));
   });
 
+  it('requests statistic type metadata by default so live stats can be canonicalized', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ data: { id: 321, statistics: [] } }),
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const { fetchSportmonksFixtureById } = await import('../lib/sportmonks-api.js');
+    await fetchSportmonksFixtureById('321');
+
+    const calledUrl = new URL(fetchMock.mock.calls[0]![0] as string);
+    expect(calledUrl.searchParams.get('include')).toBe(
+      'participants;league;state;scores;events;statistics.type;periods',
+    );
+  });
+
   it('normalizes object and null response data while omitting empty params', async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce({

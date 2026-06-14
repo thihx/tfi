@@ -86,6 +86,13 @@ interface StatsOnlySignalDeliveryRow {
   id: number;
 }
 
+export interface LatestStatsOnlySignalDeliveryRow {
+  matchId: string;
+  createdAt: string;
+  triggerKey: string;
+  deliveryStatus: string;
+}
+
 export interface EnqueueStatsOnlySignalInput {
   matchId: string;
   homeTeam: string;
@@ -97,6 +104,25 @@ export interface EnqueueStatsOnlySignalInput {
   kickoffAtUtc: string | null;
   signal: StatsOnlyLiveSignalResult;
   referenceMarketKeys?: string[];
+}
+
+export interface EnqueueNoSaveLiveInsightInput {
+  matchId: string;
+  homeTeam: string;
+  awayTeam: string;
+  league: string;
+  status: string;
+  minute: number;
+  score: string;
+  kickoffAtUtc: string | null;
+  insightType: 'degraded_evidence' | 'policy_blocked';
+  triggerKey: string;
+  summaryEn: string;
+  summaryVi: string;
+  evidenceMode: string;
+  reasons: string[];
+  severity?: 'medium' | 'high';
+  marketFamilyHint?: string | null;
 }
 
 function jsonObject(value: unknown): Record<string, unknown> {
@@ -578,6 +604,175 @@ export async function enqueueStatsOnlyLiveSignalDeliveries(
   return { enqueued: deliveryIds.length, deliveryIds };
 }
 
+export async function enqueueNoSaveLiveInsightDeliveries(
+  input: EnqueueNoSaveLiveInsightInput,
+): Promise<{ enqueued: number; deliveryIds: number[] }> {
+  if (!input.triggerKey.trim()) {
+    return { enqueued: 0, deliveryIds: [] };
+  }
+
+  const result = await query<StatsOnlySignalDeliveryRow>(
+    `WITH targets AS (
+       SELECT DISTINCT
+              s.user_id,
+              COALESCE(settings.channel_policy, '{}'::jsonb) AS channel_policy
+         FROM user_watch_subscriptions s
+         LEFT JOIN user_match_alert_settings settings ON settings.user_id = s.user_id
+        WHERE s.match_id = $1
+          AND s.notify_enabled = TRUE
+          AND COALESCE(settings.condition_alerts_enabled, TRUE) = TRUE
+     ),
+     rules AS (
+       INSERT INTO user_match_alert_rules (
+          user_id,
+          match_id,
+          alert_kind,
+          enabled,
+          source,
+          source_ref,
+          rule_json,
+          compiled_status,
+          cooldown_minutes,
+          once_per_match,
+          channel_policy,
+          metadata,
+          updated_at
+       )
+       SELECT
+          t.user_id,
+          $1,
+          'condition_signal',
+          TRUE,
+          'live_insight',
+          jsonb_build_object('matchId', $1, 'contract', 'no-save-live-insight'),
+          jsonb_build_object('version', 1, 'id', 'no_save_live_insight'),
+          'draft',
+          10,
+          FALSE,
+          t.channel_policy,
+          jsonb_build_object(
+            'materializedBy', 'server-pipeline',
+            'contract', 'no-save-live-insight',
+            'systemDraftRule', TRUE
+          ),
+          NOW()
+         FROM targets t
+       ON CONFLICT (user_id, match_id, alert_kind, source)
+         WHERE match_id IS NOT NULL
+       DO UPDATE
+          SET enabled = TRUE,
+              compiled_status = 'draft',
+              channel_policy = EXCLUDED.channel_policy,
+              metadata = EXCLUDED.metadata,
+              updated_at = NOW()
+       RETURNING id, user_id
+     ),
+     deliveries AS (
+       INSERT INTO user_match_alert_deliveries (
+          rule_id,
+          user_id,
+          match_id,
+          alert_kind,
+          trigger_key,
+          trigger_snapshot,
+          delivery_status,
+          metadata
+       )
+       SELECT
+          r.id,
+          r.user_id,
+          $1,
+          'condition_signal',
+          $2,
+          $3::jsonb,
+          'pending',
+          $4::jsonb
+         FROM rules r
+       ON CONFLICT (rule_id, trigger_key) DO NOTHING
+       RETURNING id
+     )
+     SELECT id FROM deliveries`,
+    [
+      input.matchId,
+      input.triggerKey,
+      JSON.stringify({
+        summaryEn: input.summaryEn,
+        summaryVi: input.summaryVi,
+        severity: input.severity === 'high' ? 'high' : 'medium',
+        suggestedAction: 'avoid_chasing',
+        facts: {
+          insightType: input.insightType,
+          evidenceMode: input.evidenceMode,
+          marketFamilyHint: input.marketFamilyHint ?? null,
+          reasons: input.reasons,
+          noActionableBet: true,
+          saveRecommendation: false,
+        },
+      }),
+      JSON.stringify({
+        matchDisplay: `${input.homeTeam} vs ${input.awayTeam}`,
+        homeTeam: input.homeTeam,
+        awayTeam: input.awayTeam,
+        league: input.league,
+        status: input.status,
+        minute: input.minute,
+        score: input.score,
+        kickoffAtUtc: input.kickoffAtUtc,
+        insightType: input.insightType,
+        evidenceMode: input.evidenceMode,
+        signalReasons: input.reasons,
+        marketFamilyHint: input.marketFamilyHint ?? null,
+        noActionableBet: true,
+        saveRecommendation: false,
+        notificationKind: 'match_insight',
+        signalContractVersion: 'no-save-live-insight-v1',
+      }),
+    ],
+  );
+  const deliveryIds = result.rows.map((row) => Number(row.id));
+  await syncDeliveryChannels(deliveryIds);
+  await recomputeParentDelivery(deliveryIds);
+  return { enqueued: deliveryIds.length, deliveryIds };
+}
+
+export async function getLatestStatsOnlySignalDeliveriesByMatchIds(
+  matchIds: string[],
+): Promise<Map<string, LatestStatsOnlySignalDeliveryRow>> {
+  const ids = [...new Set(matchIds.map((id) => String(id).trim()).filter(Boolean))];
+  if (ids.length === 0) return new Map();
+
+  const result = await query<{
+    match_id: string;
+    created_at: string;
+    trigger_key: string;
+    delivery_status: string;
+  }>(
+    `SELECT DISTINCT ON (match_id)
+        match_id,
+        created_at::text AS created_at,
+        trigger_key,
+        delivery_status
+       FROM user_match_alert_deliveries
+      WHERE match_id = ANY($1)
+        AND (
+          trigger_key LIKE 'stats_only:%'
+          OR metadata->>'signalContractVersion' = 'odds-first-stats-only-live-signal-v1'
+        )
+      ORDER BY match_id, created_at DESC, id DESC`,
+    [ids],
+  );
+
+  return new Map(result.rows.map((row) => [
+    row.match_id,
+    {
+      matchId: row.match_id,
+      createdAt: row.created_at,
+      triggerKey: row.trigger_key,
+      deliveryStatus: row.delivery_status,
+    },
+  ]));
+}
+
 function asString(value: unknown): string {
   return typeof value === 'string' ? value : '';
 }
@@ -589,13 +784,47 @@ function buildAlertUrl(matchId: string, metadata: Record<string, unknown>): stri
   return `/?${params.toString()}`;
 }
 
+function isStatsOnlySignal(row: PendingWebPushRow, metadata: Record<string, unknown>, snapshot: Record<string, unknown>): boolean {
+  const facts = jsonObject(snapshot.facts);
+  return row.trigger_key.startsWith('stats_only:')
+    || metadata.noActionableOdds === true
+    || metadata.signalContractVersion === 'odds-first-stats-only-live-signal-v1'
+    || facts.noActionableOdds === true;
+}
+
+function isNoSaveMatchInsight(row: PendingWebPushRow, metadata: Record<string, unknown>, snapshot: Record<string, unknown>): boolean {
+  const facts = jsonObject(snapshot.facts);
+  return isStatsOnlySignal(row, metadata, snapshot)
+    || row.trigger_key.startsWith('insight:')
+    || metadata.notificationKind === 'match_insight'
+    || metadata.noActionableBet === true
+    || facts.noActionableBet === true
+    || metadata.signalContractVersion === 'no-save-live-insight-v1';
+}
+
+function insightDisclosure(metadata: Record<string, unknown>, statsOnlySignal: boolean): string {
+  if (statsOnlySignal) return 'No live odds available - stats-only insight.';
+  const insightType = asString(metadata.insightType);
+  if (insightType === 'policy_blocked') return 'No actionable bet - policy guard blocked the candidate.';
+  if (insightType === 'degraded_evidence') return 'No actionable bet - limited live evidence.';
+  return 'No actionable bet - match insight only.';
+}
+
 function buildPushPayload(row: PendingWebPushRow): PushPayload {
   const metadata = jsonObject(row.metadata);
   const snapshot = jsonObject(row.trigger_snapshot);
-  const title = row.alert_kind === 'match_start' ? 'MATCH STARTED' : 'LIVE SIGNAL';
+  const statsOnlySignal = isStatsOnlySignal(row, metadata, snapshot);
+  const noSaveInsight = isNoSaveMatchInsight(row, metadata, snapshot);
+  const title = row.alert_kind === 'match_start'
+    ? 'MATCH STARTED'
+    : noSaveInsight
+      ? 'TFI MATCH INSIGHT'
+      : 'LIVE SIGNAL';
   const summary = asString(snapshot.summaryVi) || asString(snapshot.summaryEn) || 'Match alert matched.';
   const matchDisplay = asString(metadata.matchDisplay) || row.match_id;
-  const body = `${matchDisplay}\n${summary}`;
+  const body = noSaveInsight
+    ? `${matchDisplay}\n${insightDisclosure(metadata, statsOnlySignal)}\n${summary}`
+    : `${matchDisplay}\n${summary}`;
   const tag = row.alert_kind === 'match_start'
     ? `tfi-alert-match-start-${row.match_id}`
     : `tfi-alert-${row.trigger_key.replace(/[^a-zA-Z0-9:_-]/g, '-')}`;
@@ -614,6 +843,11 @@ function buildPushPayload(row: PendingWebPushRow): PushPayload {
       alertKind: row.alert_kind,
       deliveryId: row.delivery_id,
       triggerKey: row.trigger_key,
+      notificationKind: statsOnlySignal ? 'stats_only_insight' : noSaveInsight ? 'match_insight' : 'match_alert',
+      actionableBet: noSaveInsight ? 'false' : 'unknown',
+      saveRecommendation: noSaveInsight ? 'false' : 'unknown',
+      evidenceMode: noSaveInsight ? asString(metadata.evidenceMode) || (statsOnlySignal ? 'stats_only' : undefined) : undefined,
+      insightType: noSaveInsight ? asString(metadata.insightType) || undefined : undefined,
     },
   };
 }
@@ -847,13 +1081,20 @@ export async function deliverPendingWebPushMatchAlerts(limit = 50): Promise<{ pe
 function buildFallbackText(row: PendingWebPushRow): string {
   const metadata = jsonObject(row.metadata);
   const snapshot = jsonObject(row.trigger_snapshot);
-  const kind = row.alert_kind === 'match_start' ? 'MATCH STARTED' : 'LIVE SIGNAL';
+  const statsOnlySignal = isStatsOnlySignal(row, metadata, snapshot);
+  const noSaveInsight = isNoSaveMatchInsight(row, metadata, snapshot);
+  const kind = row.alert_kind === 'match_start'
+    ? 'MATCH STARTED'
+    : noSaveInsight
+      ? 'MATCH INSIGHT'
+      : 'LIVE SIGNAL';
   const matchDisplay = asString(metadata.matchDisplay) || row.match_id;
   const summary = asString(snapshot.summaryVi) || asString(snapshot.summaryEn) || 'Match alert matched.';
   const score = asString(metadata.score);
   const minute = metadata.minute == null ? '' : String(metadata.minute);
   const meta = [minute ? `${minute}'` : '', score].filter(Boolean).join(' | ');
-  return [kind, matchDisplay, meta, summary].filter(Boolean).join('\n');
+  const disclaimer = noSaveInsight ? insightDisclosure(metadata, statsOnlySignal) : '';
+  return [kind, matchDisplay, meta, disclaimer, summary].filter(Boolean).join('\n');
 }
 
 export async function deliverPendingNativePushMatchAlerts(limit = 50): Promise<{ pending: number; delivered: number; failed: number }> {

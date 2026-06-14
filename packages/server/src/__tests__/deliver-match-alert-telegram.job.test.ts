@@ -104,4 +104,37 @@ describe('deliver match alert telegram job', () => {
     expect(result).toEqual({ pending: 2, delivered: 2, failed: 0 });
     expect(mockSendTelegramMessage).toHaveBeenCalledTimes(2);
   });
+
+  it('labels no-save match insights distinctly from live betting signals', async () => {
+    mockGetPendingTelegramMatchAlertDeliveries.mockResolvedValue([
+      row({
+        alertKind: 'condition_signal',
+        triggerKey: 'insight:100:stats-only',
+        notificationLanguage: 'en',
+        triggerSnapshot: {
+          summaryEn: 'Pressure is building, but there is no actionable bet to save.',
+          facts: { noActionableBet: true },
+        },
+        metadata: {
+          matchDisplay: 'Home FC vs Away FC',
+          league: 'J1 League',
+          status: '1H',
+          minute: 62,
+          score: '0-0',
+          notificationKind: 'match_insight',
+          noActionableBet: true,
+          insightType: 'degraded_evidence',
+        },
+      }),
+    ]);
+
+    const { deliverMatchAlertTelegramJob } = await import('../jobs/deliver-match-alert-telegram.job.js');
+    const result = await deliverMatchAlertTelegramJob();
+
+    expect(result).toEqual({ pending: 1, delivered: 1, failed: 0 });
+    const message = String(mockSendTelegramMessage.mock.calls[0]?.[1] ?? '');
+    expect(message).toContain('MATCH INSIGHT');
+    expect(message).toContain('No actionable bet - limited live evidence.');
+    expect(message).not.toContain('LIVE SIGNAL');
+  });
 });

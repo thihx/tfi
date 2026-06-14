@@ -35,6 +35,13 @@
       "statements": 95
     },
     {
+      "pathIncludes": "src/lib/canonical/the-odds-api-adapter.ts",
+      "lines": 95,
+      "branches": 95,
+      "functions": 95,
+      "statements": 95
+    },
+    {
       "pathIncludes": "src/lib/pipeline-live-input.ts",
       "lines": 90,
       "branches": 90,
@@ -89,6 +96,13 @@
       "branches": 95,
       "functions": 95,
       "statements": 95
+    },
+    {
+      "pathIncludes": "src/lib/the-odds-api.ts",
+      "lines": 90,
+      "branches": 90,
+      "functions": 90,
+      "statements": 90
     }
   ]
 }

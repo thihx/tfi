@@ -3,6 +3,11 @@ import {
   fetchPreMatchOdds,
 } from './football-api.js';
 import {
+  fetchTheOddsApiOdds,
+  type FetchTheOddsApiOddsInput,
+} from './the-odds-api.js';
+import type { TheOddsApiEventLike } from './canonical/the-odds-api-adapter.js';
+import {
   extractStatusCode,
   recordProviderOddsSampleSafe,
 } from './provider-sampling.js';
@@ -25,6 +30,7 @@ export interface ResolveMatchOddsInput {
   homeTeam?: string;
   awayTeam?: string;
   kickoffTimestamp?: number;
+  leagueId?: number | string | null;
   leagueName?: string;
   leagueCountry?: string;
   status?: string;
@@ -48,6 +54,7 @@ export interface ResolveMatchOddsResult {
 export interface ResolveMatchOddsDeps {
   fetchLiveOdds?: (fixtureId: string) => Promise<unknown[]>;
   fetchPreMatchOdds?: (fixtureId: string) => Promise<unknown[]>;
+  fetchTheOddsApiOdds?: (input: FetchTheOddsApiOddsInput) => ReturnType<typeof fetchTheOddsApiOdds>;
   getCachedOdds?: (matchId: string) => Promise<ProviderOddsCacheRow | null>;
   upsertCachedOdds?: (input: UpsertProviderOddsCacheInput) => Promise<unknown>;
   summarizeCoverageFlags?: (response: unknown[]) => Record<string, unknown>;
@@ -72,6 +79,7 @@ type NormalizedOddsEntry = {
 const defaultResolveDeps: ResolveMatchOddsDeps = {
   fetchLiveOdds,
   fetchPreMatchOdds,
+  fetchTheOddsApiOdds,
   getCachedOdds: getProviderOddsCache,
   upsertCachedOdds: upsertProviderOddsCache,
   summarizeCoverageFlags: summarizeNormalizedOdds,
@@ -390,8 +398,12 @@ function getCacheAgeMs(row: ProviderOddsCacheRow | null, now: Date): number | nu
   return now.getTime() - parsed;
 }
 
-function isLegacyProviderSource(providerSource: string | null | undefined): boolean {
-  return String(providerSource || '').toLowerCase() === 'the-odds-live';
+function isLegacyTheOddsLiveCache(row: ProviderOddsCacheRow): boolean {
+  if (String(row.provider_source || '').toLowerCase() !== 'the-odds-live') return false;
+  const trace = row.provider_trace && typeof row.provider_trace === 'object' && !Array.isArray(row.provider_trace)
+    ? row.provider_trace as Record<string, unknown>
+    : {};
+  return trace['the_odds_api_resolver_version'] !== 'v1';
 }
 
 function responseArrayOf(row: ProviderOddsCacheRow): unknown[] {
@@ -448,7 +460,7 @@ async function loadFreshCachedOdds(
     const freshness = classifyFreshness(getCacheAgeMs(cached, now), getOddsCacheTtlMs(input));
     const mode = input.freshnessMode ?? 'stale_safe';
     if (!cached) return { staleRow: null };
-    if (isLegacyProviderSource(cached.provider_source)) return { staleRow: null };
+    if (isLegacyTheOddsLiveCache(cached)) return { staleRow: null };
     if (freshness === 'fresh' && !bypassStartedCache(mode, input.status ?? cached.match_status)) {
       recordCachedOddsSample(input, cached, deps);
       return buildCacheResult(cached, 'fresh', 'hit');
@@ -480,6 +492,7 @@ async function persistOddsCache(
       provider_trace: {
         provider_source: providerSource,
         consumer: consumerOf(input),
+        ...(providerSource === 'the-odds-live' ? { the_odds_api_resolver_version: 'v1' } : {}),
       },
       odds_fetched_at: result.oddsFetchedAt,
       match_status: input.status ?? '',
@@ -518,6 +531,235 @@ function sampleBase(input: ResolveMatchOddsInput) {
     match_status: input.status ?? '',
     consumer: consumerOf(input),
   };
+}
+
+function normalizeText(value: unknown): string {
+  return String(value ?? '')
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+function cleanText(value: unknown): string {
+  return String(value ?? '').trim();
+}
+
+function numberValue(value: unknown): number | null {
+  if (value == null || value === '') return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+function arrayOf(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function recordOf(value: unknown): Record<string, unknown> {
+  return value != null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function envFlag(name: string): boolean {
+  return String(process.env[name] ?? '').toLowerCase() === 'true';
+}
+
+function firstEnv(...names: string[]): string {
+  for (const name of names) {
+    const value = cleanText(process.env[name]);
+    if (value) return value;
+  }
+  return '';
+}
+
+function isTheOddsApiResolverEnabled(): boolean {
+  return envFlag('THEODDSAPI_ENABLED')
+    && Boolean(firstEnv('THEODDSAPI_API_TOKEN', 'THE_ODDS_API_TOKEN', 'THE_ODDS_API_KEY'));
+}
+
+function unique(values: string[]): string[] {
+  return values.filter((value, index, all) => value && all.indexOf(value) === index);
+}
+
+const THE_ODDS_API_SPORT_KEY_BY_API_FOOTBALL_LEAGUE_ID: Record<string, string> = {
+  // API-Football league ids observed in production watchlist. Keep this as a
+  // deterministic fallback when the local matches table does not store country.
+  '39': 'soccer_epl',
+  '61': 'soccer_france_ligue_one',
+  '78': 'soccer_germany_bundesliga',
+  '88': 'soccer_netherlands_eredivisie',
+  '135': 'soccer_italy_serie_a',
+  '140': 'soccer_spain_la_liga',
+  '141': 'soccer_spain_segunda_division',
+  '265': 'soccer_chile_campeonato',
+};
+
+function inferTheOddsApiSportKeys(input: ResolveMatchOddsInput): string[] {
+  const league = normalizeText(input.leagueName);
+  const country = normalizeText(input.leagueCountry);
+  const combined = `${country} ${league}`;
+  const configured = firstEnv('THEODDSAPI_SOCCER_SPORT_KEY', 'THE_ODDS_API_SOCCER_SPORT_KEY');
+  const keys: string[] = [];
+  const leagueIdKey = cleanText(input.leagueId);
+  const leagueIdSportKey = THE_ODDS_API_SPORT_KEY_BY_API_FOOTBALL_LEAGUE_ID[leagueIdKey];
+
+  if (leagueIdSportKey) keys.push(leagueIdSportKey);
+
+  if (combined.includes('world cup')) keys.push(configured || 'soccer_fifa_world_cup');
+  if (combined.includes('chile') && (combined.includes('primera') || combined.includes('campeonato'))) {
+    keys.push('soccer_chile_campeonato');
+  }
+  if (
+    (combined.includes('spain') || combined.includes('spanish'))
+    && (combined.includes('segunda') || combined.includes('la liga 2') || combined.includes('laliga 2'))
+  ) {
+    keys.push('soccer_spain_segunda_division');
+  }
+  if ((combined.includes('spain') || combined.includes('spanish')) && combined.includes('la liga') && !combined.includes('segunda')) {
+    keys.push('soccer_spain_la_liga');
+  }
+  if (combined.includes('england') && combined.includes('premier')) keys.push('soccer_epl');
+  if (combined.includes('germany') && combined.includes('bundesliga')) keys.push('soccer_germany_bundesliga');
+  if (combined.includes('italy') && combined.includes('serie a')) keys.push('soccer_italy_serie_a');
+  if (combined.includes('france') && combined.includes('ligue 1')) keys.push('soccer_france_ligue_one');
+  if (combined.includes('netherlands') && combined.includes('eredivisie')) keys.push('soccer_netherlands_eredivisie');
+  if (combined.includes('portugal') && (combined.includes('primeira') || combined.includes('liga portugal'))) {
+    keys.push('soccer_portugal_primeira_liga');
+  }
+
+  if (keys.length === 0 && configured) keys.push(configured);
+  return unique(keys);
+}
+
+function teamMatchScore(candidate: unknown, expected: unknown): number {
+  const left = normalizeText(candidate);
+  const right = normalizeText(expected);
+  if (!left || !right) return 0;
+  if (left === right) return 40;
+  if (left.includes(right) || right.includes(left)) return 25;
+  return 0;
+}
+
+function kickoffScore(event: TheOddsApiEventLike, input: ResolveMatchOddsInput): number {
+  if (!input.kickoffTimestamp) return 0;
+  const eventMs = Date.parse(cleanText(event.commence_time));
+  if (!Number.isFinite(eventMs)) return 0;
+  const diffMinutes = Math.abs((eventMs / 1000 - input.kickoffTimestamp) / 60);
+  if (diffMinutes <= 20) return 20;
+  if (diffMinutes <= 6 * 60) return 8;
+  return -30;
+}
+
+function scoreTheOddsApiEvent(event: TheOddsApiEventLike, input: ResolveMatchOddsInput): number {
+  return teamMatchScore(event.home_team, input.homeTeam)
+    + teamMatchScore(event.away_team, input.awayTeam)
+    + kickoffScore(event, input);
+}
+
+function selectTheOddsApiEvent(events: TheOddsApiEventLike[], input: ResolveMatchOddsInput): TheOddsApiEventLike | null {
+  let best: { event: TheOddsApiEventLike; score: number } | null = null;
+  for (const event of events) {
+    const score = scoreTheOddsApiEvent(event, input);
+    if (!best || score > best.score) best = { event, score };
+  }
+  return best && best.score >= 70 ? best.event : null;
+}
+
+function toTheOddsApiDateTime(ms: number): string {
+  return new Date(ms).toISOString().replace(/\.\d{3}Z$/, 'Z');
+}
+
+function marketDisplayName(key: string): string {
+  switch (key) {
+    case 'h2h': return 'Match Winner';
+    case 'totals': return 'Over/Under';
+    case 'spreads': return 'Asian Handicap';
+    case 'btts': return 'Both Teams Score';
+    default: return key;
+  }
+}
+
+function theOddsApiSelectionName(args: {
+  marketKey: string;
+  outcomeName: string;
+  homeTeam: string;
+  awayTeam: string;
+}): string {
+  const outcome = normalizeText(args.outcomeName);
+  const home = normalizeText(args.homeTeam);
+  const away = normalizeText(args.awayTeam);
+  if (args.marketKey === 'h2h') {
+    if (outcome === 'draw') return 'Draw';
+    if (outcome === home) return 'Home';
+    if (outcome === away) return 'Away';
+  }
+  if (args.marketKey === 'spreads') {
+    if (outcome === home) return 'Home';
+    if (outcome === away) return 'Away';
+  }
+  if (args.marketKey === 'totals') {
+    if (outcome.includes('over')) return 'Over';
+    if (outcome.includes('under')) return 'Under';
+  }
+  if (args.marketKey === 'btts') {
+    if (outcome === 'yes') return 'Yes';
+    if (outcome === 'no') return 'No';
+  }
+  return cleanText(args.outcomeName);
+}
+
+function theOddsApiEventToApiSportsOddsResponse(event: TheOddsApiEventLike, matchId: string): unknown[] {
+  const bookmakers = arrayOf(event.bookmakers)
+    .map((bookmakerRaw, bookmakerIndex) => {
+      const bookmaker = recordOf(bookmakerRaw);
+      const bets = arrayOf(bookmaker.markets)
+        .map((marketRaw, marketIndex) => {
+          const market = recordOf(marketRaw);
+          const marketKey = cleanText(market.key);
+          const values = arrayOf(market.outcomes)
+            .map((outcomeRaw) => {
+              const outcome = recordOf(outcomeRaw);
+              const price = numberValue(outcome.price);
+              if (price == null || price <= 1) return null;
+              const value: { value: string; odd: string; handicap?: string } = {
+                value: theOddsApiSelectionName({
+                  marketKey,
+                  outcomeName: cleanText(outcome.name),
+                  homeTeam: cleanText(event.home_team),
+                  awayTeam: cleanText(event.away_team),
+                }),
+                odd: String(price),
+              };
+              const point = numberValue(outcome.point);
+              if (point != null && (marketKey === 'totals' || marketKey === 'spreads')) {
+                value.handicap = point > 0 ? `+${point}` : String(point);
+              }
+              return value;
+            })
+            .filter((value): value is { value: string; odd: string; handicap?: string } => value != null && value.value !== '');
+          if (values.length === 0) return null;
+          return {
+            id: marketIndex + 1,
+            name: marketDisplayName(marketKey),
+            values,
+          };
+        })
+        .filter((bet): bet is { id: number; name: string; values: Array<{ value: string; odd: string; handicap?: string }> } => bet != null);
+      if (bets.length === 0) return null;
+      return {
+        id: bookmakerIndex + 1,
+        name: cleanText(bookmaker.title) || cleanText(bookmaker.key) || 'The Odds API',
+        bets,
+      };
+    })
+    .filter((bookmaker): bookmaker is NormalizedBookmaker => bookmaker != null);
+
+  return bookmakers.length > 0
+    ? [{
+        fixture: { id: matchId },
+        update: new Date().toISOString(),
+        bookmakers,
+      }]
+    : [];
 }
 
 function isLiveOddsStatus(status?: string | null): boolean {
@@ -573,6 +815,87 @@ async function fetchProviderOdds(
       coverage_flags: (deps.summarizeCoverageFlags ?? summarizeNormalizedOdds)(normalized),
     });
   }
+  return {
+    raw,
+    normalized,
+    usable,
+    error,
+    latencyMs: Date.now() - startedAt,
+  };
+}
+
+async function fetchTheOddsApiProviderOdds(
+  input: ResolveMatchOddsInput,
+  deps: ResolveMatchOddsDeps,
+): Promise<ProviderFetchResult> {
+  const startedAt = Date.now();
+  let raw: unknown[] = [];
+  let normalized: unknown[] = [];
+  let error: unknown = null;
+
+  if (!isTheOddsApiResolverEnabled() || !deps.fetchTheOddsApiOdds) {
+    return {
+      raw,
+      normalized,
+      usable: false,
+      error: new Error('THEODDSAPI resolver disabled or token missing'),
+      latencyMs: 0,
+    };
+  }
+
+  try {
+    const sportKeys = inferTheOddsApiSportKeys(input);
+    if (sportKeys.length === 0) {
+      throw new Error('THEODDSAPI sport key unavailable for league');
+    }
+    const from = input.kickoffTimestamp
+      ? toTheOddsApiDateTime(input.kickoffTimestamp * 1000 - 6 * 60 * 60_000)
+      : undefined;
+    const to = input.kickoffTimestamp
+      ? toTheOddsApiDateTime(input.kickoffTimestamp * 1000 + 6 * 60 * 60_000)
+      : undefined;
+
+    for (const sportKey of sportKeys) {
+      const result = await deps.fetchTheOddsApiOdds({
+        sportKey,
+        regions: firstEnv('THEODDSAPI_REGIONS', 'THE_ODDS_API_REGIONS') || 'eu,uk,us',
+        markets: firstEnv('THEODDSAPI_MARKETS', 'THE_ODDS_API_MARKETS') || 'h2h,spreads,totals',
+        bookmakers: firstEnv('THEODDSAPI_BOOKMAKERS', 'THE_ODDS_API_BOOKMAKERS'),
+        commenceTimeFrom: from,
+        commenceTimeTo: to,
+        consumer: consumerOf(input),
+        jobName: consumerOf(input),
+      });
+      raw = result.raw;
+      const event = selectTheOddsApiEvent(result.data as TheOddsApiEventLike[], input);
+      if (event) {
+        normalized = theOddsApiEventToApiSportsOddsResponse(event, input.matchId);
+        if (hasUsableBookmakers(normalized)) break;
+      }
+    }
+  } catch (err) {
+    error = err;
+  }
+
+  const usable = hasUsableBookmakers(normalized);
+  if (isSamplingEnabled(input)) {
+    void recordProviderOddsSampleSafe({
+      ...sampleBase(input),
+      provider: 'the-odds-api',
+      source: 'live',
+      success: !error,
+      usable,
+      latency_ms: Date.now() - startedAt,
+      status_code: error ? extractStatusCode(error) : null,
+      error: error
+        ? (error instanceof Error ? error.message : String(error))
+        : usable ? '' : 'NO_USABLE_THE_ODDS_API_LIVE_ODDS',
+      raw_payload: raw,
+      normalized_payload: normalized,
+      coverage_flags: (deps.summarizeCoverageFlags ?? summarizeNormalizedOdds)(normalized),
+    });
+  }
+
   return {
     raw,
     normalized,
@@ -693,6 +1016,24 @@ async function resolveMatchOddsFromProviders(
   }
 
   let lastError = providerErrorMessage(live.error, 'NO_USABLE_LIVE_ODDS');
+
+  const theOddsLive = await fetchTheOddsApiProviderOdds(input, resolvedDeps);
+  if (theOddsLive.usable) {
+    return {
+      result: {
+        oddsSource: 'fallback-live',
+        response: theOddsLive.normalized,
+        oddsFetchedAt: nowIso(),
+        freshness: 'fresh',
+        cacheStatus: 'refreshed',
+      },
+      providerSource: 'the-odds-live',
+      lastError: '',
+    };
+  }
+  if (theOddsLive.error) {
+    lastError = `${lastError} | ${providerErrorMessage(theOddsLive.error, 'NO_USABLE_THE_ODDS_API_LIVE_ODDS')}`;
+  }
 
   if (bypassStartedCache(mode, input.status)) {
     const preMatch = await fetchProviderOdds('pre-match', input, resolvedDeps);

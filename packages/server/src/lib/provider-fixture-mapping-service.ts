@@ -96,6 +96,16 @@ const PROVIDER_MAPPING_CONFIDENCES = new Set<ProviderMappingConfidence>([
 
 const PROVIDER_MAPPING_METHODS = new Set<string>(PROVIDER_FIXTURE_MAPPING_METHODS);
 
+const LEAGUE_SYNONYM_GROUPS = [
+  [
+    'segunda division',
+    'spain segunda division',
+    'spanish segunda division',
+    'la liga 2',
+    'laliga 2',
+  ],
+];
+
 function cleanString(value: unknown): string {
   return value == null ? '' : String(value).trim();
 }
@@ -164,6 +174,16 @@ export function providerTeamNamesSimilar(left: string, right: string, aliases: s
     || normalizedLeft.includes(candidate)
     || candidate.includes(normalizedLeft)
     || tokenOverlap(normalizedLeft, candidate) >= 0.67
+  ));
+}
+
+function providerLeagueNamesSimilar(left: string | null | undefined, right: string | null | undefined): boolean {
+  const normalizedLeft = normalizeProviderTeamName(cleanString(left));
+  const normalizedRight = normalizeProviderTeamName(cleanString(right));
+  if (!normalizedLeft || !normalizedRight) return false;
+  if (providerTeamNamesSimilar(normalizedLeft, normalizedRight)) return true;
+  return LEAGUE_SYNONYM_GROUPS.some((group) => (
+    group.includes(normalizedLeft) && group.includes(normalizedRight)
   ));
 }
 
@@ -294,7 +314,7 @@ export function scoreProviderFixtureCandidate<TCandidate>(
   } else if (
     source.leagueName
     && fixture.leagueName
-    && providerTeamNamesSimilar(source.leagueName, fixture.leagueName)
+    && providerLeagueNamesSimilar(source.leagueName, fixture.leagueName)
   ) {
     score += 10;
     reasons.push('league_name_match');
@@ -386,8 +406,35 @@ export async function resolveProviderFixtureMapping<TCandidate>(
       ? await input.fetchFixtureByProviderId(existing.provider_fixture_id)
       : null;
     const fixtureRef = fixture ? input.candidateToFixture(fixture) : null;
-    const confidence = normalizeConfidence(existing.confidence, existing.mapping_method);
-    const mappingMethod = normalizeMethod(existing.mapping_method);
+    let confidence = normalizeConfidence(existing.confidence, existing.mapping_method);
+    let mappingMethod = normalizeMethod(existing.mapping_method);
+    let score: number | null = null;
+    let reasons = ['stored_mapping'];
+    let evidence = existingEvidence(existing, fixtureRef);
+    const canRevalidateStoredMapping = fixture != null
+      && !isProviderFixtureMappingMoneyEligible(confidence)
+      && (mappingMethod === 'date_team_match' || mappingMethod === 'kickoff_team_league_match');
+    if (canRevalidateStoredMapping) {
+      const rescored = scoreProviderFixtureCandidate(input.source, fixture, input.candidateToFixture);
+      if (!rescored.rejected && isProviderFixtureMappingMoneyEligible(rescored.confidence)) {
+        confidence = rescored.confidence;
+        mappingMethod = rescored.mappingMethod;
+        score = rescored.score;
+        reasons = ['stored_mapping_revalidated', ...rescored.reasons];
+        evidence = {
+          ...candidateEvidence(input.source, rescored as ProviderFixtureCandidateScore<unknown>, 1),
+          previousStored: existingEvidence(existing, fixtureRef),
+        };
+        await upsertMapping({
+          match_id: matchId,
+          provider,
+          provider_fixture_id: String(rescored.fixture.providerFixtureId),
+          confidence,
+          mapping_method: mappingMethod,
+          evidence,
+        });
+      }
+    }
     const warnings = [
       ...(fixture ? [] : [`${provider}_mapped_fixture_not_found`]),
       ...(isProviderFixtureMappingMoneyEligible(confidence) ? [] : [`${provider}_mapping_low_confidence`]),
@@ -399,10 +446,10 @@ export async function resolveProviderFixtureMapping<TCandidate>(
       fixture,
       confidence,
       mappingMethod,
-      score: null,
-      reasons: ['stored_mapping'],
+      score,
+      reasons,
       warnings,
-      evidence: existingEvidence(existing, fixtureRef),
+      evidence,
       canUseForMoneyDecision: fixture != null && isProviderFixtureMappingMoneyEligible(confidence),
       source: 'existing',
     };

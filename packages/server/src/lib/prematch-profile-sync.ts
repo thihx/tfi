@@ -998,7 +998,7 @@ export async function syncDerivedPrematchProfiles(
     let profileSampleMatches = rows.length;
     let profileEventSummaryMatches = rows.filter((row) => parseStoredSettlementEventSummary(row.settlement_event_summary) != null).length;
     let profileNotesEn = `Auto-derived from the last ${rows.length} settled matches over ${policy.lookbackDays} days.`;
-    let profileNotesVi = `Tu dong suy ra tu ${rows.length} tran da ket thuc trong ${policy.lookbackDays} ngay gan nhat.`;
+    let profileNotesVi = '';
     if (!profile && policy.label === 'international') {
       const leagueTeamIds = activeTeamCandidates
         .filter((candidate) => candidate.targetLeagueIds.includes(leagueId))
@@ -1008,7 +1008,7 @@ export async function syncDerivedPrematchProfiles(
       profileSampleMatches = participantSamples.length;
       profileEventSummaryMatches = participantSamples.filter((sample) => sample.scoredFirst != null && sample.hadGoalAfter75 != null).length;
       profileNotesEn = `Auto-derived from ${participantSamples.length} recent team-perspective samples for participating national teams over ${policy.lookbackDays} days because direct tournament history was unavailable.`;
-      profileNotesVi = `Tu dong suy ra tu ${participantSamples.length} mau gan day theo goc nhin doi tuyen tham du trong ${policy.lookbackDays} ngay vi chua co lich su truc tiep cua giai.`;
+      profileNotesVi = '';
     }
     if (!profile) {
       skippedLeagueProfiles += 1;
@@ -1058,7 +1058,7 @@ export async function syncDerivedPrematchProfiles(
         computed_at: computedAt,
       }, existingProfile?.profile ?? null),
       notes_en: `Auto-derived from ${samples.length} settled matches in the last ${candidate.profilePolicy.lookbackDays} days across approved competition contexts. Tactical fields remain neutral defaults until manually curated.`,
-      notes_vi: `Tu dong suy ra tu ${samples.length} tran da ket thuc trong ${candidate.profilePolicy.lookbackDays} ngay gan nhat tren cac boi canh giai dau duoc phe duyet. Cac truong chien thuat van de gia tri trung tinh cho den khi duoc bien tap thu cong.`,
+      notes_vi: '',
     });
     refreshedTeamProfiles += 1;
   }

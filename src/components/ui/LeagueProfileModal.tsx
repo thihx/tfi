@@ -110,6 +110,8 @@ function toLeagueProfileDraft(profile: LeagueProfile): LeagueProfileDraft {
   delete next.league_id;
   delete next.created_at;
   delete next.updated_at;
+  next.notes_en = profile.notes_en || profile.notes_vi || '';
+  next.notes_vi = '';
   return next;
 }
 
@@ -278,28 +280,16 @@ export function LeagueProfileModal({
 
           <div style={{ display: 'grid', gap: 14 }}>
             <SectionLabel>Notes</SectionLabel>
-            <div className="profile-notes-grid">
-              <label style={{ display: 'grid', gap: 4 }}>
-                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>English</span>
-                <textarea
-                  rows={4}
-                  className="filter-input"
-                  value={draft.notes_en}
-                  onChange={(e) => setDraft((prev) => ({ ...prev, notes_en: e.target.value }))}
-                  style={{ resize: 'vertical', fontSize: 12 }}
-                />
-              </label>
-              <label style={{ display: 'grid', gap: 4 }}>
-                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Tiếng Việt</span>
-                <textarea
-                  rows={4}
-                  className="filter-input"
-                  value={draft.notes_vi}
-                  onChange={(e) => setDraft((prev) => ({ ...prev, notes_vi: e.target.value }))}
-                  style={{ resize: 'vertical', fontSize: 12 }}
-                />
-              </label>
-            </div>
+            <label style={{ display: 'grid', gap: 4 }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Note</span>
+              <textarea
+                rows={4}
+                className="filter-input"
+                value={draft.notes_en}
+                onChange={(e) => setDraft((prev) => ({ ...prev, notes_en: e.target.value, notes_vi: '' }))}
+                style={{ resize: 'vertical', fontSize: 12 }}
+              />
+            </label>
           </div>
         </div>
       )}

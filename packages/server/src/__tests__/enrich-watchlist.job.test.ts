@@ -34,6 +34,10 @@ vi.mock('../repos/leagues.repo.js', () => ({
   ]),
 }));
 
+vi.mock('../repos/favorite-teams.repo.js', () => ({
+  getFavoriteTeamIds: vi.fn().mockResolvedValue(new Set<string>()),
+}));
+
 vi.mock('../repos/settings.repo.js', () => ({
   getSettings: vi.fn().mockResolvedValue({
     AUTO_APPLY_RECOMMENDED_CONDITION: true,
@@ -168,7 +172,7 @@ vi.mock('../lib/strategic-context.service.js', async (importOriginal) => {
   };
 });
 
-const { enrichWatchlistJob } = await import('../jobs/enrich-watchlist.job.js');
+const { enrichWatchlistJob, setForceEnrich } = await import('../jobs/enrich-watchlist.job.js');
 
 beforeEach(async () => {
   vi.clearAllMocks();
@@ -198,6 +202,9 @@ beforeEach(async () => {
     { league_id: 140, league_name: 'La Liga', country: 'Spain', top_league: true, active: true, tier: '1', type: 'league', logo: '', last_updated: '' },
   ] as never);
 
+  const favoriteTeamsRepo = await import('../repos/favorite-teams.repo.js');
+  vi.mocked(favoriteTeamsRepo.getFavoriteTeamIds).mockResolvedValue(new Set<string>() as never);
+
   const service = await import('../lib/strategic-context.service.js');
   vi.mocked(service.fetchStrategicContext).mockReset();
   vi.mocked(service.fetchStrategicContext).mockResolvedValue(defaultStrategicContext as never);
@@ -208,6 +215,178 @@ describe('enrichWatchlistJob', () => {
     const result = await enrichWatchlistJob();
     expect(result.checked).toBe(1);
     expect(result.enriched).toBe(1);
+  });
+
+  test('skips non-favorite league and non-favorite team matches to control enrichment cost', async () => {
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    vi.mocked(watchlistRepo.getActiveOperationalWatchlist).mockResolvedValueOnce([
+      {
+        match_id: '125',
+        home_team: 'Regular A',
+        away_team: 'Regular B',
+        league: 'Regular League',
+        date: '2026-03-17',
+        status: 'active',
+        strategic_context_at: null,
+        recommended_custom_condition: '',
+        custom_conditions: '',
+      },
+    ] as never);
+    const matchRepo = await import('../repos/matches.repo.js');
+    vi.mocked(matchRepo.getAllMatches).mockResolvedValueOnce([
+      { match_id: '125', status: 'NS', league_id: 999, home_team_id: 9001, away_team_id: 9002 },
+    ] as never);
+    const leaguesRepo = await import('../repos/leagues.repo.js');
+    vi.mocked(leaguesRepo.getAllLeagues).mockResolvedValueOnce([
+      { league_id: 999, league_name: 'Regular League', country: 'Nowhere', top_league: false, active: true, tier: '2', type: 'league', logo: '', last_updated: '' },
+    ] as never);
+    vi.mocked(watchlistRepo.getKickoffMinutesForMatchIds).mockResolvedValueOnce(new Map([['125', 60]]) as never);
+
+    const result = await enrichWatchlistJob();
+    const service = await import('../lib/strategic-context.service.js');
+
+    expect(result).toMatchObject({
+      checked: 0,
+      enriched: 0,
+      metrics: {
+        activeWatchlist: 1,
+        fetchCalls: 0,
+        skipped: expect.objectContaining({ outsideFavoriteScope: 1 }),
+      },
+    });
+    expect(service.fetchStrategicContext).not.toHaveBeenCalled();
+  });
+
+  test('enriches non-top league matches when one side is a favorite team', async () => {
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    vi.mocked(watchlistRepo.getActiveOperationalWatchlist).mockResolvedValueOnce([
+      {
+        match_id: '126',
+        home_team: 'Favorite FC',
+        away_team: 'Regular B',
+        league: 'Regular League',
+        date: '2026-03-17',
+        status: 'active',
+        strategic_context_at: null,
+        recommended_custom_condition: '',
+        custom_conditions: '',
+      },
+    ] as never);
+    const matchRepo = await import('../repos/matches.repo.js');
+    vi.mocked(matchRepo.getAllMatches).mockResolvedValueOnce([
+      { match_id: '126', status: 'NS', league_id: 999, home_team_id: 42, away_team_id: 9002 },
+    ] as never);
+    const leaguesRepo = await import('../repos/leagues.repo.js');
+    vi.mocked(leaguesRepo.getAllLeagues).mockResolvedValueOnce([
+      { league_id: 999, league_name: 'Regular League', country: 'Nowhere', top_league: false, active: true, tier: '2', type: 'league', logo: '', last_updated: '' },
+    ] as never);
+    const favoriteTeamsRepo = await import('../repos/favorite-teams.repo.js');
+    vi.mocked(favoriteTeamsRepo.getFavoriteTeamIds).mockResolvedValueOnce(new Set(['42']) as never);
+    vi.mocked(watchlistRepo.getKickoffMinutesForMatchIds).mockResolvedValueOnce(new Map([['126', 60]]) as never);
+
+    const result = await enrichWatchlistJob();
+    const service = await import('../lib/strategic-context.service.js');
+
+    expect(result).toMatchObject({
+      checked: 1,
+      enriched: 1,
+      metrics: {
+        fetchCalls: 1,
+        outcomes: expect.objectContaining({ good: 1 }),
+        scope: expect.objectContaining({ favoriteTeam: 1, favoriteLeague: 0 }),
+      },
+    });
+    expect(service.fetchStrategicContext).toHaveBeenCalledWith(
+      'Favorite FC',
+      'Regular B',
+      'Regular League',
+      '2026-03-17',
+      expect.objectContaining({
+        topLeague: false,
+        highPriority: true,
+        matchId: '126',
+      }),
+    );
+  });
+
+  test('force enrich still skips matches outside favorite league/team scope', async () => {
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    vi.mocked(watchlistRepo.getActiveOperationalWatchlist).mockResolvedValueOnce([
+      {
+        match_id: '127',
+        home_team: 'Regular A',
+        away_team: 'Regular B',
+        league: 'Regular League',
+        date: '2026-03-17',
+        status: 'active',
+        strategic_context_at: null,
+        recommended_custom_condition: '',
+        custom_conditions: '',
+      },
+    ] as never);
+    const matchRepo = await import('../repos/matches.repo.js');
+    vi.mocked(matchRepo.getAllMatches).mockResolvedValueOnce([
+      { match_id: '127', status: 'NS', league_id: 999, home_team_id: 9001, away_team_id: 9002 },
+    ] as never);
+    const leaguesRepo = await import('../repos/leagues.repo.js');
+    vi.mocked(leaguesRepo.getAllLeagues).mockResolvedValueOnce([
+      { league_id: 999, league_name: 'Regular League', country: 'Nowhere', top_league: false, active: true, tier: '2', type: 'league', logo: '', last_updated: '' },
+    ] as never);
+    setForceEnrich();
+
+    const result = await enrichWatchlistJob();
+    const service = await import('../lib/strategic-context.service.js');
+
+    expect(result).toMatchObject({
+      checked: 0,
+      enriched: 0,
+      metrics: {
+        force: true,
+        fetchCalls: 0,
+        skipped: expect.objectContaining({ outsideFavoriteScope: 1 }),
+      },
+    });
+    expect(service.fetchStrategicContext).not.toHaveBeenCalled();
+  });
+
+  test('force enrich does not rerun already usable context in the target refresh window', async () => {
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    vi.mocked(watchlistRepo.getActiveOperationalWatchlist).mockResolvedValueOnce([
+      {
+        match_id: '128',
+        home_team: 'Arsenal',
+        away_team: 'Chelsea',
+        league: 'Premier League',
+        date: '2026-03-17',
+        status: 'active',
+        strategic_context: {
+          ...defaultStrategicContext,
+          _meta: { refresh_status: 'good', failure_count: 0, refresh_window: 'final' },
+        },
+        strategic_context_at: sixHoursAgo,
+        recommended_custom_condition: '',
+        custom_conditions: '',
+      },
+    ] as never);
+    const matchRepo = await import('../repos/matches.repo.js');
+    vi.mocked(matchRepo.getAllMatches).mockResolvedValueOnce([
+      { match_id: '128', status: 'NS', league_id: 39 },
+    ] as never);
+    setForceEnrich();
+
+    const result = await enrichWatchlistJob();
+    const service = await import('../lib/strategic-context.service.js');
+
+    expect(result).toMatchObject({
+      checked: 0,
+      enriched: 0,
+      metrics: {
+        force: true,
+        fetchCalls: 0,
+        skipped: expect.objectContaining({ usableSameWindow: 1 }),
+      },
+    });
+    expect(service.fetchStrategicContext).not.toHaveBeenCalled();
   });
 
   test('updates strategic context and generates conditions', async () => {
@@ -227,7 +406,14 @@ describe('enrichWatchlistJob', () => {
     vi.mocked(watchlistRepo.getActiveOperationalWatchlist).mockResolvedValueOnce([]);
 
     const result = await enrichWatchlistJob();
-    expect(result).toEqual({ checked: 0, enriched: 0 });
+    expect(result).toMatchObject({
+      checked: 0,
+      enriched: 0,
+      metrics: {
+        activeWatchlist: 0,
+        fetchCalls: 0,
+      },
+    });
   });
 
   test('enriches entries within kickoff window even when previous timestamp is old', async () => {
@@ -500,8 +686,10 @@ describe('enrichWatchlistJob', () => {
     ] as never);
     const matchRepo = await import('../repos/matches.repo.js');
     vi.mocked(matchRepo.getAllMatches).mockResolvedValueOnce([
-      { match_id: '600', status: 'NS', league_id: 999 },
+      { match_id: '600', status: 'NS', league_id: 999, home_team_id: 42, away_team_id: 43 },
     ] as never);
+    const favoriteTeamsRepo = await import('../repos/favorite-teams.repo.js');
+    vi.mocked(favoriteTeamsRepo.getFavoriteTeamIds).mockResolvedValueOnce(new Set(['42']) as never);
     vi.mocked(watchlistRepo.getKickoffMinutesForMatchIds).mockResolvedValueOnce(new Map([['600', 240]]) as never);
 
     const result = await enrichWatchlistJob();
@@ -604,8 +792,10 @@ describe('enrichWatchlistJob', () => {
     ] as never);
     const matchRepo = await import('../repos/matches.repo.js');
     vi.mocked(matchRepo.getAllMatches).mockResolvedValueOnce([
-      { match_id: '800', status: 'NS', league_id: 999 },
+      { match_id: '800', status: 'NS', league_id: 999, home_team_id: 42, away_team_id: 43 },
     ] as never);
+    const favoriteTeamsRepo = await import('../repos/favorite-teams.repo.js');
+    vi.mocked(favoriteTeamsRepo.getFavoriteTeamIds).mockResolvedValueOnce(new Set(['42']) as never);
     const service = await import('../lib/strategic-context.service.js');
     vi.mocked(service.fetchStrategicContext).mockResolvedValueOnce({
       ...defaultStrategicContext,
@@ -699,7 +889,7 @@ describe('enrichWatchlistJob', () => {
     );
   });
 
-  test('retries top-league poor context even when legacy retry_after is still in the future', async () => {
+  test('skips top-league poor context until retry_after passes in the same refresh window', async () => {
     const watchlistRepo = await import('../repos/watchlist.repo.js');
     vi.mocked(watchlistRepo.getActiveOperationalWatchlist).mockResolvedValueOnce([
       {
@@ -720,7 +910,9 @@ describe('enrichWatchlistJob', () => {
           },
           _meta: {
             refresh_status: 'poor',
+            failure_count: 1,
             retry_after: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
+            refresh_window: 'prematch',
           },
         },
         strategic_context_at: sixHoursAgo,
@@ -732,6 +924,94 @@ describe('enrichWatchlistJob', () => {
     vi.mocked(matchRepo.getAllMatches).mockResolvedValueOnce([
       { match_id: '950', status: 'NS', league_id: 140 },
     ] as never);
+    vi.mocked(watchlistRepo.getKickoffMinutesForMatchIds).mockResolvedValueOnce(new Map([['950', 75]]) as never);
+    const service = await import('../lib/strategic-context.service.js');
+    vi.mocked(service.fetchStrategicContext).mockResolvedValueOnce(defaultStrategicContext as never);
+
+    const result = await enrichWatchlistJob();
+
+    expect(result.checked).toBe(0);
+    expect(result.enriched).toBe(0);
+    expect(service.fetchStrategicContext).not.toHaveBeenCalled();
+  });
+
+  test('stops automatic low-quality retry after max attempts in the same refresh window', async () => {
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    vi.mocked(watchlistRepo.getActiveOperationalWatchlist).mockResolvedValueOnce([
+      {
+        match_id: '951',
+        home_team: 'Barcelona',
+        away_team: 'Rayo Vallecano',
+        league: 'La Liga',
+        date: '2026-03-17',
+        status: 'active',
+        strategic_context: {
+          ...defaultStrategicContext,
+          source_meta: {
+            ...defaultStrategicContext.source_meta,
+            search_quality: 'low',
+            trusted_source_count: 1,
+          },
+          _meta: {
+            refresh_status: 'poor',
+            failure_count: 2,
+            retry_after: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+            refresh_window: 'prematch',
+          },
+        },
+        strategic_context_at: sixHoursAgo,
+        recommended_custom_condition: '',
+        custom_conditions: '',
+      },
+    ] as never);
+    const matchRepo = await import('../repos/matches.repo.js');
+    vi.mocked(matchRepo.getAllMatches).mockResolvedValueOnce([
+      { match_id: '951', status: 'NS', league_id: 140 },
+    ] as never);
+    vi.mocked(watchlistRepo.getKickoffMinutesForMatchIds).mockResolvedValueOnce(new Map([['951', 75]]) as never);
+    const service = await import('../lib/strategic-context.service.js');
+
+    const result = await enrichWatchlistJob();
+
+    expect(result.checked).toBe(0);
+    expect(result.enriched).toBe(0);
+    expect(service.fetchStrategicContext).not.toHaveBeenCalled();
+  });
+
+  test('allows a new attempt when low-quality context enters a new refresh window', async () => {
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    vi.mocked(watchlistRepo.getActiveOperationalWatchlist).mockResolvedValueOnce([
+      {
+        match_id: '952',
+        home_team: 'Barcelona',
+        away_team: 'Rayo Vallecano',
+        league: 'La Liga',
+        date: '2026-03-17',
+        status: 'active',
+        strategic_context: {
+          ...defaultStrategicContext,
+          source_meta: {
+            ...defaultStrategicContext.source_meta,
+            search_quality: 'low',
+            trusted_source_count: 1,
+          },
+          _meta: {
+            refresh_status: 'poor',
+            failure_count: 2,
+            retry_after: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+            refresh_window: 'broad',
+          },
+        },
+        strategic_context_at: sixHoursAgo,
+        recommended_custom_condition: '',
+        custom_conditions: '',
+      },
+    ] as never);
+    const matchRepo = await import('../repos/matches.repo.js');
+    vi.mocked(matchRepo.getAllMatches).mockResolvedValueOnce([
+      { match_id: '952', status: 'NS', league_id: 140 },
+    ] as never);
+    vi.mocked(watchlistRepo.getKickoffMinutesForMatchIds).mockResolvedValueOnce(new Map([['952', 75]]) as never);
     const service = await import('../lib/strategic-context.service.js');
     vi.mocked(service.fetchStrategicContext).mockResolvedValueOnce(defaultStrategicContext as never);
 
@@ -739,16 +1019,7 @@ describe('enrichWatchlistJob', () => {
 
     expect(result.checked).toBe(1);
     expect(result.enriched).toBe(1);
-    expect(service.fetchStrategicContext).toHaveBeenCalledWith(
-      'Barcelona',
-      'Rayo Vallecano',
-      'La Liga',
-      '2026-03-17',
-      expect.objectContaining({
-        topLeague: true,
-        leagueCountry: 'Spain',
-      }),
-    );
+    expect(service.fetchStrategicContext).toHaveBeenCalledTimes(1);
   });
 
   test('does not rescue sparse top-league context with removed prediction fallback', async () => {
@@ -886,7 +1157,7 @@ describe('enrichWatchlistJob', () => {
     vi.mocked(matchRepo.getAllMatches).mockResolvedValueOnce([
       { match_id: '100', status: 'NS', league_id: 39 },
       { match_id: '300', status: 'NS', league_id: 140 },
-      { match_id: '600', status: 'NS', league_id: 999 },
+      { match_id: '600', status: 'NS', league_id: 999, home_team_id: 42, away_team_id: 43 },
     ] as never);
 
     const leaguesRepo = await import('../repos/leagues.repo.js');
@@ -895,6 +1166,8 @@ describe('enrichWatchlistJob', () => {
       { league_id: 140, league_name: 'La Liga', country: 'Spain', top_league: true, active: true, tier: '1', type: 'league', logo: '', last_updated: '' },
       { league_id: 999, league_name: 'Lower League', country: 'Nowhere', top_league: false, active: true, tier: '2', type: 'league', logo: '', last_updated: '' },
     ] as never);
+    const favoriteTeamsRepo = await import('../repos/favorite-teams.repo.js');
+    vi.mocked(favoriteTeamsRepo.getFavoriteTeamIds).mockResolvedValueOnce(new Set(['42']) as never);
 
     const service = await import('../lib/strategic-context.service.js');
     await enrichWatchlistJob();

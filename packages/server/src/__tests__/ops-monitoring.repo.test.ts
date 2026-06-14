@@ -146,6 +146,52 @@ describe('ops-monitoring.repo', () => {
     expect(checklist[0]?.id).toBe('prematch-high-noise');
   });
 
+  test('buildOpsChecklist warns instead of failing when high-noise rows are duplicate-heavy', () => {
+    const checklist = buildOpsChecklist(checklistInput({
+      prematchTotalRows: 22,
+      prematchHighNoiseRows: 13,
+      prematchHighNoiseRate: 59.1,
+      prematchDistinctMatches: 4,
+      prematchHighNoiseDistinctMatches: 2,
+      prematchHighNoiseDistinctRate: 50,
+    }));
+
+    const item = checklist.find((entry) => entry.id === 'prematch-high-noise');
+    expect(item?.status).toBe('warn');
+    expect(item?.label).toBe('Prematch noise is elevated');
+    expect(item?.detail).toContain('2/4 distinct match(es) (50%)');
+  });
+
+  test('buildOpsChecklist treats no-push no-action funnel as informational', () => {
+    const checklist = buildOpsChecklist(checklistInput({
+      funnelLiveDetected24h: 193,
+      funnelShouldPush24h: 0,
+      funnelSaved24h: 0,
+      funnelModelNoBet24h: 14,
+      funnelPolicyBlocked24h: 4,
+      funnelSaveBlocked24h: 0,
+    }));
+
+    const item = checklist.find((entry) => entry.id === 'actionable-funnel');
+    expect(item?.status).toBe('unknown');
+    expect(item?.label).toBe('Actionable funnel produced no model/system push');
+    expect(item?.detail).toContain('model/system push count is 0');
+  });
+
+  test('buildOpsChecklist fails when actionable saves are blocked after push', () => {
+    const checklist = buildOpsChecklist(checklistInput({
+      funnelLiveDetected24h: 12,
+      funnelShouldPush24h: 3,
+      funnelSaved24h: 0,
+      funnelSaveBlocked24h: 2,
+    }));
+
+    const item = checklist.find((entry) => entry.id === 'actionable-funnel');
+    expect(item?.status).toBe('fail');
+    expect(item?.label).toBe('Actionable funnel save is blocked');
+    expect(item?.detail).toContain('2 save-blocked row(s)');
+  });
+
   test('buildOpsChecklist returns pass/warn/fail states from thresholds', () => {
     const checklist = buildOpsChecklist({
       pipelineEnabled: true,
@@ -565,6 +611,8 @@ describe('ops-monitoring.repo', () => {
           minimal_rows: '3',
           no_prematch_rows: '2',
           high_noise_rows: '2',
+          distinct_match_rows: '4',
+          high_noise_distinct_matches: '1',
           avg_noise_penalty: '34.5',
           structured_eligible_rows: '5',
         }],
@@ -575,6 +623,9 @@ describe('ops-monitoring.repo', () => {
             match_id: 'm2',
             match_display: 'West Ham vs Spurs',
             noise_penalty: '64',
+            row_count: '3',
+            high_noise_rows: '2',
+            avg_noise_penalty: '58.5',
             prematch_strength: 'weak',
             prematch_availability: 'minimal',
             prompt_data_level: 'basic-only',
@@ -722,6 +773,9 @@ describe('ops-monitoring.repo', () => {
     expect(snapshot.promptQuality.cornersRows).toBe(1);
     expect(snapshot.promptQuality.lateHighLineRows).toBe(2);
     expect(snapshot.promptQuality.prematch.highNoiseRate).toBe(16.7);
+    expect(snapshot.promptQuality.prematch.distinctMatchRows).toBe(4);
+    expect(snapshot.promptQuality.prematch.highNoiseDistinctMatches).toBe(1);
+    expect(snapshot.promptQuality.prematch.highNoiseDistinctRate).toBe(25);
     expect(snapshot.aiGateway.blocked24h).toBe(2);
     expect(snapshot.aiGateway.estimatedCost24h).toBe(0.1234);
     expect(snapshot.aiGateway.openBreakers).toBe(1);
@@ -740,6 +794,8 @@ describe('ops-monitoring.repo', () => {
     expect(snapshot.promptQuality.prematch.structuredAskAiBlockedRows).toBe(3);
     expect(snapshot.promptQuality.prematch.structuredAskAiReasonBreakdown[0]?.reason).toBe('eligible');
     expect(snapshot.promptQuality.prematch.topHighNoiseMatches[0]?.matchDisplay).toBe('West Ham vs Spurs');
+    expect(snapshot.promptQuality.prematch.topHighNoiseMatches[0]?.rowCount).toBe(3);
+    expect(snapshot.promptQuality.prematch.topHighNoiseMatches[0]?.highNoiseRows).toBe(2);
     expect(snapshot.promptOnly.totalRows).toBe(6);
     expect(snapshot.promptOnly.structuredEligibleRate).toBe(66.7);
     expect(snapshot.promptOnly.reasonBreakdown[1]?.reason).toBe('low_evidence_without_watch_condition');
@@ -752,10 +808,12 @@ describe('ops-monitoring.repo', () => {
     expect(snapshot.llm.topBlockReasons[0]?.reason).toBe('auto_llm_cooldown_active');
     expect(snapshot.llm.diagnosticBreakdown[0]?.diagnostic).toBe('no_bet_intentional');
     expect(snapshot.cards.find((card) => card.label === 'Notify-Eligible Rate 24h')?.value).toBe('40%');
-    expect(snapshot.cards.find((card) => card.label === 'Prematch High Noise 24h')?.value).toBe('16.7%');
+    expect(snapshot.cards.find((card) => card.label === 'Prematch High Noise 24h')?.value).toBe('25%');
+    expect(snapshot.cards.find((card) => card.label === 'Prematch High Noise 24h')?.detail).toBe('1/4 matches; 2/12 rows');
     expect(snapshot.cards.find((card) => card.label === 'Prematch Structured Eligible')?.value).toBe('62.5%');
     expect(snapshot.cards.find((card) => card.label === 'LLM Blocked 24h')?.value).toBe('5');
-    expect(snapshot.cards.find((card) => card.label === 'Actionable Funnel 24h')?.value).toBe('11.1%');
+    expect(snapshot.cards.find((card) => card.label === 'Actionable Funnel 24h')?.value).toBe('50%');
+    expect(snapshot.cards.find((card) => card.label === 'Actionable Funnel 24h')?.detail).toBe('1/2 model/system pushes saved');
     expect(snapshot.cards.find((card) => card.label === 'Prompt Agree 24h')?.value).toBe('100%');
     expect(snapshot.cards.find((card) => card.label === 'Stacking Rate 24h')?.value).toBe('66.7%');
     expect(snapshot.cards.find((card) => card.label === 'Critical Fallback Cost 24h')?.value).toBe('$0.3500');

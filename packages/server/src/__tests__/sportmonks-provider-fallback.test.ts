@@ -117,6 +117,31 @@ describe('sportmonks-provider-fallback', () => {
     expect(result?.events[0]).toMatchObject({ type: 'Goal', detail: '1st Goal' });
   });
 
+  it('keeps Sportmonks fallback usable when statistics only provide type ids', async () => {
+    fetchSportmonksFixturesByDate.mockResolvedValueOnce({
+      data: [{
+        ...sportmonksFixture(),
+        statistics: [
+          { participant_id: 10, type_id: 34, data: { value: 3 } },
+          { participant_id: 20, type_id: 34, data: { value: 1 } },
+          { participant_id: 10, type_id: 86, data: { value: 2 } },
+        ],
+      }],
+      raw: { data: [] },
+      statusCode: 200,
+      latencyMs: 10,
+      rateLimit: null,
+    });
+
+    const { fetchSportmonksSupplementForFixture } = await import('../lib/sportmonks-provider-fallback.js');
+    const result = await fetchSportmonksSupplementForFixture(apiFixture());
+
+    expect(result).toMatchObject({ used: true, mappingConfidence: 'high' });
+    expect(result?.statistics[0]?.statistics).toContainEqual({ type: 'Corner Kicks', value: 3 });
+    expect(result?.statistics[0]?.statistics).toContainEqual({ type: 'Shots on Goal', value: 2 });
+    expect(result?.statistics[1]?.statistics).toContainEqual({ type: 'Corner Kicks', value: 1 });
+  });
+
   it('returns null when Sportmonks fallback is not runtime-enabled', async () => {
     delete process.env['SPORTMONKS_API_TOKEN'];
 
@@ -351,12 +376,12 @@ describe('sportmonks-provider-fallback', () => {
     }));
   });
 
-  it('does not use Sportmonks data when provider clocks have a severe minute conflict', async () => {
+  it('does not treat Sportmonks length as a live-minute conflict', async () => {
     fetchSportmonksFixturesByDate.mockResolvedValueOnce({
       data: [{
         ...sportmonksFixture(),
-        state_id: '2H',
-        length: 51,
+        state_id: '22',
+        length: 90,
       }],
       raw: { data: [] },
       statusCode: 200,
@@ -373,9 +398,8 @@ describe('sportmonks-provider-fallback', () => {
     }));
 
     expect(result).toMatchObject({
-      used: false,
-      warnings: ['sportmonks_minute_conflict'],
-      coverageFlags: { minute_conflict: true },
+      used: true,
+      warnings: [],
     });
   });
 

@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 
 const configDir = dirname(fileURLToPath(import.meta.url));
 const serverPackageRoot = resolve(configDir, '..');
-const repoRoot = resolve(serverPackageRoot, '..');
+const repoRoot = resolve(serverPackageRoot, '..', '..');
 
 function loadEnvFile(path: string, override: boolean): void {
   if (existsSync(path)) dotenv.config({ path, override });
@@ -23,12 +23,15 @@ const isTestRuntime = process.env['NODE_ENV'] === 'test'
   || process.env['VITEST_WORKER_ID'] != null
   || process.argv.some((arg) => arg.toLowerCase().includes('vitest'));
 const allowPackageEnvOverride = !isTestRuntime;
-loadEnvFile(resolve(repoRoot, '.env'), false);
-loadEnvFile(resolve(repoRoot, '.env.local'), false);
-loadEnvFile(resolve(repoRoot, '.env.azure'), false);
-loadEnvFile(resolve(serverPackageRoot, '.env'), allowPackageEnvOverride);
-loadEnvFile(resolve(serverPackageRoot, '.env.local'), allowPackageEnvOverride);
-dotenv.config();
+const shouldLoadEnvFiles = !isTestRuntime || process.env['TFI_LOAD_ENV_IN_TEST'] === 'true';
+if (shouldLoadEnvFiles) {
+  loadEnvFile(resolve(repoRoot, '.env'), false);
+  loadEnvFile(resolve(repoRoot, '.env.local'), false);
+  loadEnvFile(resolve(repoRoot, '.env.azure'), false);
+  loadEnvFile(resolve(serverPackageRoot, '.env'), allowPackageEnvOverride);
+  loadEnvFile(resolve(serverPackageRoot, '.env.local'), allowPackageEnvOverride);
+  dotenv.config();
+}
 
 export const config = {
   databaseUrl: process.env['DATABASE_URL'] || 'postgresql://tfi:tfi_password@localhost:5432/tfi',
@@ -69,6 +72,28 @@ export const config = {
   sportmonksAllowStatsFallback: process.env['SPORTMONKS_ALLOW_STATS_FALLBACK'] === 'true',
   sportmonksAllowEventsFallback: process.env['SPORTMONKS_ALLOW_EVENTS_FALLBACK'] === 'true',
   sportmonksAllowOddsFallback: process.env['SPORTMONKS_ALLOW_ODDS_FALLBACK'] === 'true',
+
+  // The Odds API provider. Odds-only backup provider; disabled unless explicitly enabled.
+  theOddsApiEnabled: process.env['THEODDSAPI_ENABLED'] === 'true'
+    || process.env['THE_ODDS_API_ENABLED'] === 'true',
+  theOddsApiToken: process.env['THEODDSAPI_API_TOKEN']
+    || process.env['THE_ODDS_API_TOKEN']
+    || process.env['THE_ODDS_API_KEY']
+    || '',
+  theOddsApiBaseUrl: process.env['THEODDSAPI_BASE_URL']
+    || process.env['THE_ODDS_API_BASE_URL']
+    || 'https://api.the-odds-api.com',
+  theOddsApiTimeoutMs: Number(process.env['THEODDSAPI_API_TIMEOUT_MS'] || process.env['THE_ODDS_API_TIMEOUT_MS'] || 10_000),
+  theOddsApiRegions: process.env['THEODDSAPI_REGIONS'] || process.env['THE_ODDS_API_REGIONS'] || 'eu,uk,us',
+  theOddsApiMarkets: process.env['THEODDSAPI_MARKETS'] || process.env['THE_ODDS_API_MARKETS'] || 'h2h,spreads,totals',
+  theOddsApiBookmakers: process.env['THEODDSAPI_BOOKMAKERS'] || process.env['THE_ODDS_API_BOOKMAKERS'] || '',
+  theOddsApiDefaultSoccerSportKey: process.env['THEODDSAPI_SOCCER_SPORT_KEY']
+    || process.env['THE_ODDS_API_SOCCER_SPORT_KEY']
+    || 'soccer_fifa_world_cup',
+  jobTheOddsApiShadowMs: Number(process.env['JOB_THEODDSAPI_SHADOW_MS'] || 0),
+  theOddsApiShadowMaxMatchesPerRun: Number(process.env['THEODDSAPI_SHADOW_MAX_MATCHES_PER_RUN'] || 3),
+  theOddsApiShadowMaxCallsPerRun: Number(process.env['THEODDSAPI_SHADOW_MAX_CALLS_PER_RUN'] || 6),
+  theOddsApiShadowWindowHours: Number(process.env['THEODDSAPI_SHADOW_WINDOW_HOURS'] || 24),
 
   // Multi-provider fusion pipeline read abstraction. Phase 6 is shadow-only by default.
   providerFusionEnabled: process.env['PROVIDER_FUSION_ENABLED'] === 'true',
@@ -160,6 +185,7 @@ export const config = {
   jobAutoSettleMs: Number(process.env['JOB_AUTO_SETTLE_MS'] || 10 * 60_000),              // 10 min
   jobEnrichWatchlistMs: Number(process.env['JOB_ENRICH_WATCHLIST_MS'] || 60 * 60_000),   // 60 min
   jobEnrichWatchlistMaxPerRun: Number(process.env['JOB_ENRICH_WATCHLIST_MAX_PER_RUN'] || 20),
+  strategicContextMaxAttemptsPerWindow: Number(process.env['STRATEGIC_CONTEXT_MAX_ATTEMPTS_PER_WINDOW'] || 2),
   jobSyncReferenceDataMs: Number(process.env['JOB_SYNC_REFERENCE_DATA_MS'] || 12 * 60 * 60_000), // 12h
   syncReferenceDataRecentHistoryDays: Number(process.env['SYNC_REFERENCE_DATA_RECENT_HISTORY_DAYS'] || 90),
   syncReferenceDataMaxDirectoryRefreshPerRun: Number(process.env['SYNC_REFERENCE_DATA_MAX_DIRECTORY_REFRESH_PER_RUN'] || 40),
@@ -216,6 +242,7 @@ export const config = {
   pipelineMaxMinute: Number(process.env['PIPELINE_MAX_MINUTE'] || 85),
   pipelineSecondHalfStartMinute: Number(process.env['PIPELINE_SECOND_HALF_START_MINUTE'] || 5),
   pipelineReanalyzeMinMinutes: Number(process.env['PIPELINE_REANALYZE_MIN_MINUTES'] || 10),
+  statsOnlySignalRecheckMinutes: Number(process.env['STATS_ONLY_SIGNAL_RECHECK_MINUTES'] || 10),
   pipelineStalenessOddsDelta: Number(process.env['PIPELINE_STALENESS_ODDS_DELTA'] || 0.1),
   pipelineLatePhaseMinute: Number(process.env['PIPELINE_LATE_PHASE_MINUTE'] || 75),
   pipelineVeryLatePhaseMinute: Number(process.env['PIPELINE_VERY_LATE_PHASE_MINUTE'] || 85),

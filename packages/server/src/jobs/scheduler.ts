@@ -36,6 +36,7 @@ import { healthWatchdogJob } from './health-watchdog.job.js';
 import { syncReferenceDataJob } from './sync-reference-data.job.js';
 import { refreshProviderInsightsJob } from './refresh-provider-insights.job.js';
 import { refreshTacticalOverlaysJob } from './refresh-tactical-overlays.job.js';
+import { theOddsApiShadowJob } from './the-odds-api-shadow.job.js';
 import {
   type JobProgress,
   clearJobProgress,
@@ -963,6 +964,23 @@ export async function startScheduler() {
     },
   );
   register(
+    'the-odds-api-shadow',
+    config.jobTheOddsApiShadowMs,
+    theOddsApiShadowJob,
+    10 * 60_000,
+    undefined,
+    1,
+    10 * 60_000,
+    {
+      label: 'The Odds API Shadow',
+      description: 'Samples The Odds API on favorite-scope watchlist matches, stores odds/mapping/fusion audit evidence, and never saves recommendations.',
+      group: 'pipeline',
+      entityScopes: ['provider-odds-cache', 'provider-fixture-mapping', 'provider-fusion-shadow'],
+      order: 14,
+      lockPolicy: 'degraded-local',
+    },
+  );
+  register(
     'auto-settle',
     config.jobAutoSettleMs,
     autoSettleJob,
@@ -975,7 +993,7 @@ export async function startScheduler() {
       description: 'Checks finished matches and updates open picks and bets with their final outcome. It uses saved match history first and only asks for missing final details when needed.',
       group: 'pipeline',
       entityScopes: ['recommendations', 'bets', 'settlement-audit'],
-      order: 14,
+      order: 15,
       lockPolicy: 'strict',
     },
   );
@@ -992,7 +1010,7 @@ export async function startScheduler() {
       description: 'Removes old follow-list entries after the match has been over long enough that the app no longer needs to keep watching them.',
       group: 'maintenance',
       entityScopes: ['watchlist'],
-      order: 15,
+      order: 16,
       lockPolicy: 'degraded-local',
     },
   );

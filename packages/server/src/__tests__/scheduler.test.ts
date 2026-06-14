@@ -22,6 +22,7 @@ async function loadScheduler(options: SchedulerLoadOptions = {}) {
   const enrichWatchlistJob = vi.fn().mockResolvedValue({});
   const checkLiveTriggerJob = vi.fn().mockResolvedValue({ liveCount: 0 });
   const refreshProviderInsightsJob = vi.fn().mockResolvedValue({});
+  const theOddsApiShadowJob = vi.fn().mockResolvedValue({ checked: 0, sampled: 0 });
   const autoSettleJob = vi.fn().mockResolvedValue({});
   const expireWatchlistJob = vi.fn().mockResolvedValue({});
   const housekeepingJob = vi.fn().mockResolvedValue({});
@@ -53,6 +54,7 @@ async function loadScheduler(options: SchedulerLoadOptions = {}) {
       jobPredictionsMs: 0,
       jobCheckLiveMs: 0,
       jobRefreshProviderInsightsMs: 0,
+      jobTheOddsApiShadowMs: 0,
       jobAutoSettleMs: 0,
       jobExpireWatchlistMs: 0,
       jobHousekeepingMs: 0,
@@ -100,6 +102,7 @@ async function loadScheduler(options: SchedulerLoadOptions = {}) {
   vi.doMock('../jobs/enrich-watchlist.job.js', () => ({ enrichWatchlistJob }));
   vi.doMock('../jobs/check-live-trigger.job.js', () => ({ checkLiveTriggerJob }));
   vi.doMock('../jobs/refresh-provider-insights.job.js', () => ({ refreshProviderInsightsJob }));
+  vi.doMock('../jobs/the-odds-api-shadow.job.js', () => ({ theOddsApiShadowJob }));
   vi.doMock('../jobs/auto-settle.job.js', () => ({ autoSettleJob }));
   vi.doMock('../jobs/expire-watchlist.job.js', () => ({ expireWatchlistJob }));
   vi.doMock('../jobs/purge-audit.job.js', () => ({ housekeepingJob }));

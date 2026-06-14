@@ -171,6 +171,25 @@ describe('ai gateway', () => {
     ]);
   });
 
+  test('loop detector counts started attempts instead of lifecycle log rows', async () => {
+    process.env['AI_GATEWAY_LOOP_CALL_THRESHOLD'] = '2';
+    mocks.query
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ count: '1' }] });
+
+    const result = await evaluateAiGatewayRequest('short prompt', {
+      model: 'gemini-3.5-flash',
+      operation: 'tfi.strategic_context.grounded_research',
+      featureKey: 'tfi.strategic_context',
+      matchId: '1489374',
+      runId: 'Germany vs Curacao',
+    });
+
+    expect(result.allowed).toBe(true);
+    expect(result.reason).toBe('allowed');
+    expect(String(mocks.query.mock.calls[1]?.[0])).toContain("AND status = 'started'");
+  });
+
   test('loop breaker falls back to feature scope for tagged feature calls without match or run', async () => {
     process.env['AI_GATEWAY_MODE'] = 'observe';
     process.env['AI_GATEWAY_LOOP_CALL_THRESHOLD'] = '6';

@@ -110,7 +110,7 @@ function leagueRef(raw: SportmonksFixtureLike | NormalizedSportmonksFixture, fix
   const league = isRecord((raw as SportmonksFixtureLike).league) ? (raw as SportmonksFixtureLike).league as Record<string, unknown> : null;
   return {
     id: fixture.leagueId,
-    name: recordName(league) || fixture.name.split(' vs ')[0]?.trim() || '',
+    name: recordName(league) || fixture.leagueName || fixture.name.split(' vs ')[0]?.trim() || '',
     country: stringOrNull(league?.['country_name'] ?? league?.['country'] ?? league?.['country_code']),
     season: numberOrNull(fixture.seasonId),
     logo: stringOrNull(league?.['image_path'] ?? league?.['logo_path'] ?? league?.['logo']),
@@ -182,9 +182,23 @@ function statTypeName(row: Record<string, unknown>): string {
     ?? stringOrNull(type?.['code'])
     ?? stringOrNull(row['name'])
     ?? stringOrNull(row['type'])
+    ?? SPORTMONKS_STAT_TYPE_NAME_BY_ID[stringOrNull(row['type_id']) ?? '']
     ?? stringOrNull(row['type_id'])
     ?? '';
 }
+
+const SPORTMONKS_STAT_TYPE_NAME_BY_ID: Record<string, string> = {
+  '34': 'Corners',
+  '42': 'Shots Total',
+  '43': 'Attacks',
+  '44': 'Dangerous Attacks',
+  '45': 'Ball Possession',
+  '56': 'Fouls',
+  '80': 'Passes',
+  '83': 'Red Cards',
+  '84': 'Yellow Cards',
+  '86': 'Shots On Target',
+};
 
 function statKey(type: string): Exclude<keyof CanonicalTeamStatistics, 'rawTypeMap'> | null {
   const normalized = type.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
@@ -201,7 +215,9 @@ function statKey(type: string): Exclude<keyof CanonicalTeamStatistics, 'rawTypeM
     'corner kicks': 'corners',
     fouls: 'fouls',
     'yellow cards': 'yellowCards',
+    yellowcards: 'yellowCards',
     'red cards': 'redCards',
+    redcards: 'redCards',
     'expected goals': 'expectedGoals',
     xg: 'expectedGoals',
     expected_goals: 'expectedGoals',

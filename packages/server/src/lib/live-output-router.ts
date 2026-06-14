@@ -62,6 +62,8 @@ export interface LiveOutputRouterInput {
   statsOnlySignalTriggered?: boolean;
   statsOnlySignalEnqueued?: number;
   statsOnlySignalWeak?: boolean;
+  watchInsightTriggered?: boolean;
+  watchInsightEnqueued?: number;
   parsedShouldPush?: boolean;
   parsedFinalShouldBet?: boolean;
   policyBlocked?: boolean;
@@ -206,6 +208,28 @@ export function routeLiveOutput(input: LiveOutputRouterInput): LiveOutputDecisio
       llmCalled: input.llmCalled,
       deliveryKind: 'none',
       deliveryStatus: 'none',
+    };
+  }
+
+  if (input.watchInsightTriggered) {
+    const enqueued = Math.max(0, Number(input.watchInsightEnqueued ?? 0) || 0);
+    return {
+      contractVersion: 'live-output-v1',
+      outputKind: 'watch_insight',
+      finalOutcome: enqueued > 0 ? 'notified' : 'audited_no_action',
+      evidenceMode: input.evidenceMode,
+      route: 'watch_insight_path',
+      auditBucket: enqueued > 0 ? 'watch_insight_emitted' : 'watch_insight_no_subscriber',
+      candidatePresent: false,
+      shadowCandidate: false,
+      statsOnlySignal: false,
+      userVisible: enqueued > 0,
+      savedRecommendation: false,
+      settlementEligible: false,
+      roiEligible: false,
+      llmCalled: input.llmCalled,
+      deliveryKind: 'match_alert',
+      deliveryStatus: enqueued > 0 ? 'staged' : 'skipped',
     };
   }
 

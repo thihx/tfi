@@ -211,6 +211,9 @@ export interface PromptQualityOverview extends PromptQualitySummary {
     noPrematchRows: number;
     highNoiseRows: number;
     highNoiseRate: number;
+    distinctMatchRows: number;
+    highNoiseDistinctMatches: number;
+    highNoiseDistinctRate: number;
     avgNoisePenalty: number;
     structuredAskAiEligibleRows: number;
     structuredAskAiEligibleRate: number;
@@ -223,6 +226,9 @@ export interface PromptQualityOverview extends PromptQualitySummary {
       matchId: string;
       matchDisplay: string;
       noisePenalty: number;
+      rowCount: number;
+      highNoiseRows: number;
+      avgNoisePenalty: number;
       prematchStrength: string;
       prematchAvailability: string;
       promptDataLevel: string;
@@ -286,8 +292,15 @@ interface ChecklistInputs {
   prematchTotalRows: number;
   prematchHighNoiseRows: number;
   prematchHighNoiseRate: number;
+  prematchDistinctMatches?: number;
+  prematchHighNoiseDistinctMatches?: number;
+  prematchHighNoiseDistinctRate?: number;
   funnelLiveDetected24h: number;
+  funnelShouldPush24h?: number;
   funnelSaved24h: number;
+  funnelSaveBlocked24h?: number;
+  funnelModelNoBet24h?: number;
+  funnelPolicyBlocked24h?: number;
   llmBlocked24h: number;
   llmCompleted24h: number;
   aiGatewayMode: string;
@@ -385,6 +398,15 @@ export function buildOpsChecklist(inputs: ChecklistInputs): OpsChecklistItem[] {
   const noProviderWorkloadDetail = inputs.pipelineEnabled
     ? `No current provider workload observed (${providerWorkloadDetail}; ${inputs.analyzed24h} analyzed row(s) in 24h)`
     : 'Pipeline is disabled';
+  const prematchDistinctMatches = inputs.prematchDistinctMatches ?? inputs.prematchTotalRows;
+  const prematchHighNoiseDistinctMatches =
+    inputs.prematchHighNoiseDistinctMatches ?? inputs.prematchHighNoiseRows;
+  const prematchHighNoiseDistinctRate =
+    inputs.prematchHighNoiseDistinctRate ?? inputs.prematchHighNoiseRate;
+  const funnelShouldPush24h = inputs.funnelShouldPush24h ?? 0;
+  const funnelSaveBlocked24h = inputs.funnelSaveBlocked24h ?? 0;
+  const funnelModelNoBet24h = inputs.funnelModelNoBet24h ?? 0;
+  const funnelPolicyBlocked24h = inputs.funnelPolicyBlocked24h ?? 0;
 
   const pipelineActivityStatus: OpsChecklistStatus = inputs.activityLast2h > 0
     ? 'pass'
@@ -432,11 +454,23 @@ export function buildOpsChecklist(inputs: ChecklistInputs): OpsChecklistItem[] {
 
   const prematchHighNoiseStatus: OpsChecklistStatus = inputs.prematchTotalRows === 0
     ? 'unknown'
-    : deriveStatus(inputs.prematchHighNoiseRate <= 10, inputs.prematchHighNoiseRate <= 25);
+    : prematchHighNoiseDistinctRate >= 75 || inputs.prematchHighNoiseRate >= 75
+      ? 'fail'
+      : prematchHighNoiseDistinctRate > 25 || inputs.prematchHighNoiseRate > 25
+        ? 'warn'
+        : 'pass';
+  const noActionIsExpected =
+    funnelShouldPush24h === 0
+    && funnelSaveBlocked24h === 0
+    && funnelModelNoBet24h + funnelPolicyBlocked24h > 0;
   const actionableFunnelStatus: OpsChecklistStatus = inputs.funnelLiveDetected24h === 0
     ? 'unknown'
+    : funnelSaveBlocked24h > 0
+      ? 'fail'
     : inputs.funnelSaved24h > 0
       ? 'pass'
+      : noActionIsExpected
+        ? 'unknown'
       : 'warn';
   const llmBlockPressureStatus: OpsChecklistStatus = inputs.llmBlocked24h === 0
     ? 'pass'
@@ -542,15 +576,15 @@ export function buildOpsChecklist(inputs: ChecklistInputs): OpsChecklistItem[] {
       id: 'prematch-high-noise',
       label: inputs.prematchTotalRows === 0
         ? 'Prematch noise has no samples'
-        : inputs.prematchHighNoiseRate <= 10
+        : prematchHighNoiseStatus === 'pass'
           ? 'Prematch noise is under control'
-          : inputs.prematchHighNoiseRate <= 25
+          : prematchHighNoiseStatus === 'warn'
             ? 'Prematch noise is elevated'
             : 'Prematch high-noise rate is critical',
       status: prematchHighNoiseStatus,
       detail: inputs.prematchTotalRows === 0
         ? `No analyzed prematch rows in last ${PROMPT_QUALITY_WINDOW_HOURS}h`
-        : `${inputs.prematchHighNoiseRows}/${inputs.prematchTotalRows} analyzed row(s) high-noise (${inputs.prematchHighNoiseRate}%) in last ${PROMPT_QUALITY_WINDOW_HOURS}h`,
+        : `${inputs.prematchHighNoiseRows}/${inputs.prematchTotalRows} analyzed row(s) high-noise (${inputs.prematchHighNoiseRate}%); ${prematchHighNoiseDistinctMatches}/${prematchDistinctMatches} distinct match(es) (${prematchHighNoiseDistinctRate}%) in last ${PROMPT_QUALITY_WINDOW_HOURS}h`,
     },
     {
       id: 'actionable-funnel',
@@ -558,11 +592,19 @@ export function buildOpsChecklist(inputs: ChecklistInputs): OpsChecklistItem[] {
         ? 'Actionable funnel has no live samples'
         : inputs.funnelSaved24h > 0
           ? 'Actionable funnel produced saves'
-          : 'Actionable funnel produced no saves',
+          : funnelSaveBlocked24h > 0
+            ? 'Actionable funnel save is blocked'
+            : noActionIsExpected
+              ? 'Actionable funnel produced no model/system push'
+              : 'Actionable funnel produced no saves',
       status: actionableFunnelStatus,
       detail: inputs.funnelLiveDetected24h === 0
         ? `No live-detected rows in last ${PIPELINE_WINDOW_HOURS}h`
-        : `${inputs.funnelSaved24h}/${inputs.funnelLiveDetected24h} live detected row(s) saved in last ${PIPELINE_WINDOW_HOURS}h`,
+        : funnelSaveBlocked24h > 0
+          ? `${funnelSaveBlocked24h} save-blocked row(s); ${inputs.funnelSaved24h}/${funnelShouldPush24h} model/system push row(s) saved in last ${PIPELINE_WINDOW_HOURS}h`
+          : noActionIsExpected
+            ? `${inputs.funnelSaved24h} saved because model/system push count is ${funnelShouldPush24h}; no-bet=${funnelModelNoBet24h}, policy-blocked=${funnelPolicyBlocked24h}`
+            : `${inputs.funnelSaved24h}/${inputs.funnelLiveDetected24h} live detected row(s) saved in last ${PIPELINE_WINDOW_HOURS}h`,
     },
     {
       id: 'llm-block-pressure',
@@ -1076,6 +1118,8 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
       minimal_rows: string;
       no_prematch_rows: string;
       high_noise_rows: string;
+      distinct_match_rows: string;
+      high_noise_distinct_matches: string;
       avg_noise_penalty: string | null;
       structured_eligible_rows: string;
     }>(`
@@ -1096,6 +1140,13 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
             ELSE FALSE
           END
         )::text AS high_noise_rows,
+        COUNT(DISTINCT NULLIF(COALESCE(metadata->>'matchId', metadata->>'matchDisplay'), ''))::text AS distinct_match_rows,
+        COUNT(DISTINCT CASE
+          WHEN COALESCE(metadata->>'prematchNoisePenalty', '') ~ '^-?[0-9]+(\\.[0-9]+)?$'
+            AND (metadata->>'prematchNoisePenalty')::numeric >= 50
+          THEN NULLIF(COALESCE(metadata->>'matchId', metadata->>'matchDisplay'), '')
+          ELSE NULL
+        END)::text AS high_noise_distinct_matches,
         AVG(CASE
           WHEN COALESCE(metadata->>'prematchNoisePenalty', '') ~ '^-?[0-9]+(\\.[0-9]+)?$'
             THEN (metadata->>'prematchNoisePenalty')::numeric
@@ -1113,6 +1164,9 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
       match_id: string;
       match_display: string;
       noise_penalty: string;
+      row_count: string;
+      high_noise_rows: string;
+      avg_noise_penalty: string;
       prematch_strength: string;
       prematch_availability: string;
       prompt_data_level: string;
@@ -1121,18 +1175,24 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
       SELECT
         COALESCE(metadata->>'matchId', '') AS match_id,
         COALESCE(NULLIF(metadata->>'matchDisplay', ''), metadata->>'matchId', 'unknown') AS match_display,
-        metadata->>'prematchNoisePenalty' AS noise_penalty,
-        COALESCE(NULLIF(metadata->>'prematchStrength', ''), 'none') AS prematch_strength,
-        COALESCE(NULLIF(metadata->>'prematchAvailability', ''), 'none') AS prematch_availability,
-        COALESCE(NULLIF(metadata->>'promptDataLevel', ''), 'unknown') AS prompt_data_level,
-        timestamp::text AS analyzed_at
+        MAX((metadata->>'prematchNoisePenalty')::numeric)::text AS noise_penalty,
+        COUNT(*)::text AS row_count,
+        COUNT(*) FILTER (WHERE (metadata->>'prematchNoisePenalty')::numeric >= 50)::text AS high_noise_rows,
+        AVG((metadata->>'prematchNoisePenalty')::numeric)::text AS avg_noise_penalty,
+        MODE() WITHIN GROUP (ORDER BY COALESCE(NULLIF(metadata->>'prematchStrength', ''), 'none')) AS prematch_strength,
+        MODE() WITHIN GROUP (ORDER BY COALESCE(NULLIF(metadata->>'prematchAvailability', ''), 'none')) AS prematch_availability,
+        MODE() WITHIN GROUP (ORDER BY COALESCE(NULLIF(metadata->>'promptDataLevel', ''), 'unknown')) AS prompt_data_level,
+        MAX(timestamp)::text AS analyzed_at
       FROM audit_logs
       WHERE category = 'PIPELINE'
         AND action = 'PIPELINE_MATCH_ANALYZED'
         AND timestamp >= NOW() - INTERVAL '${PROMPT_QUALITY_WINDOW_HOURS} hours'
         AND COALESCE(metadata->>'prematchNoisePenalty', '') ~ '^-?[0-9]+(\\.[0-9]+)?$'
         AND (metadata->>'prematchNoisePenalty')::numeric >= 50
-      ORDER BY (metadata->>'prematchNoisePenalty')::numeric DESC, timestamp DESC
+      GROUP BY COALESCE(metadata->>'matchId', ''), COALESCE(NULLIF(metadata->>'matchDisplay', ''), metadata->>'matchId', 'unknown')
+      ORDER BY COUNT(*) FILTER (WHERE (metadata->>'prematchNoisePenalty')::numeric >= 50) DESC,
+               MAX((metadata->>'prematchNoisePenalty')::numeric) DESC,
+               MAX(timestamp) DESC
       LIMIT 8
     `),
     query<{
@@ -1313,7 +1373,11 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
         (SELECT COALESCE(SUM(estimated_cost_usd), 0)::text FROM ai_gateway_logs
          WHERE status = 'succeeded' AND created_at >= NOW() - INTERVAL '${PIPELINE_WINDOW_HOURS} hours') AS estimated_cost,
         (SELECT COUNT(*)::text FROM ai_gateway_breakers WHERE status = 'open') AS open_breakers,
-        (SELECT COUNT(*)::text FROM ai_gateway_incidents WHERE status = 'open') AS open_incidents
+        (SELECT COUNT(*)::text
+           FROM ai_gateway_incidents i
+           LEFT JOIN ai_gateway_breakers b ON b.id = i.breaker_id
+          WHERE i.status = 'open'
+            AND (i.breaker_id IS NULL OR b.status = 'open')) AS open_incidents
     `).catch(() => ({
       rows: [{
         blocked: '0',
@@ -1431,6 +1495,9 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
   const prematchTotalRows = Number(prematchAuditSummary.total_rows);
   const prematchHighNoiseRows = Number(prematchAuditSummary.high_noise_rows);
   const prematchHighNoiseRate = pct(prematchHighNoiseRows, prematchTotalRows);
+  const prematchDistinctMatches = Number(prematchAuditSummary.distinct_match_rows);
+  const prematchHighNoiseDistinctMatches = Number(prematchAuditSummary.high_noise_distinct_matches);
+  const prematchHighNoiseDistinctRate = pct(prematchHighNoiseDistinctMatches, prematchDistinctMatches);
   const prematchAvgNoisePenalty = round(Number(prematchAuditSummary.avg_noise_penalty ?? 0), 1);
   const prematchStructuredEligibleRows = Number(prematchAuditSummary.structured_eligible_rows);
   const prematchStructuredTotalRows = Number(prematchStructuredSummary.total_rows);
@@ -1514,8 +1581,15 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
     prematchTotalRows,
     prematchHighNoiseRows,
     prematchHighNoiseRate,
+    prematchDistinctMatches,
+    prematchHighNoiseDistinctMatches,
+    prematchHighNoiseDistinctRate,
     funnelLiveDetected24h,
+    funnelShouldPush24h,
     funnelSaved24h,
+    funnelSaveBlocked24h,
+    funnelModelNoBet24h,
+    funnelPolicyBlocked24h,
     llmBlocked24h,
     llmCompleted24h,
     aiGatewayMode,
@@ -1594,15 +1668,15 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
     },
     {
       label: 'Prematch High Noise 24h',
-      value: prematchTotalRows > 0 ? `${prematchHighNoiseRate}%` : 'n/a',
+      value: prematchTotalRows > 0 ? `${prematchHighNoiseDistinctRate}%` : 'n/a',
       tone: prematchTotalRows === 0
         ? 'unknown'
-        : prematchHighNoiseRate <= 10
-        ? 'pass'
-        : prematchHighNoiseRate <= 25
+        : prematchHighNoiseDistinctRate >= 75 || prematchHighNoiseRate >= 75
+          ? 'fail'
+          : prematchHighNoiseDistinctRate > 25 || prematchHighNoiseRate > 25
           ? 'warn'
-        : 'fail',
-      detail: `${prematchHighNoiseRows}/${prematchTotalRows} analyzed rows`,
+          : 'pass',
+      detail: `${prematchHighNoiseDistinctMatches}/${prematchDistinctMatches} matches; ${prematchHighNoiseRows}/${prematchTotalRows} rows`,
     },
     {
       label: 'LLM Blocked 24h',
@@ -1612,13 +1686,23 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
     },
     {
       label: 'Actionable Funnel 24h',
-      value: funnelLiveDetected24h > 0 ? `${pct(funnelSaved24h, funnelLiveDetected24h)}%` : 'n/a',
+      value: funnelShouldPush24h > 0
+        ? `${pct(funnelSaved24h, funnelShouldPush24h)}%`
+        : funnelLiveDetected24h > 0
+          ? 'no push'
+          : 'n/a',
       tone: funnelLiveDetected24h === 0
         ? 'neutral'
+        : funnelSaveBlocked24h > 0
+          ? 'fail'
         : funnelSaved24h > 0
           ? 'pass'
-          : 'warn',
-      detail: `${funnelSaved24h}/${funnelLiveDetected24h} live detected saved`,
+          : funnelShouldPush24h === 0 && (funnelModelNoBet24h + funnelPolicyBlocked24h) > 0
+            ? 'unknown'
+            : 'warn',
+      detail: funnelShouldPush24h > 0
+        ? `${funnelSaved24h}/${funnelShouldPush24h} model/system pushes saved`
+        : `${funnelLiveDetected24h} live detected; model no-push/no-action`,
     },
     {
       label: 'LLM Fail 24h',
@@ -1853,6 +1937,9 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
         noPrematchRows: Number(prematchAuditSummary.no_prematch_rows),
         highNoiseRows: prematchHighNoiseRows,
         highNoiseRate: prematchHighNoiseRate,
+        distinctMatchRows: prematchDistinctMatches,
+        highNoiseDistinctMatches: prematchHighNoiseDistinctMatches,
+        highNoiseDistinctRate: prematchHighNoiseDistinctRate,
         avgNoisePenalty: prematchAvgNoisePenalty,
         structuredAskAiEligibleRows: prematchStructuredEligibleRows,
         structuredAskAiEligibleRate: prematchStructuredEligibleRate,
@@ -1865,6 +1952,9 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
           matchId: row.match_id,
           matchDisplay: row.match_display,
           noisePenalty: Number(row.noise_penalty),
+          rowCount: Number(row.row_count),
+          highNoiseRows: Number(row.high_noise_rows),
+          avgNoisePenalty: round(Number(row.avg_noise_penalty ?? 0), 1),
           prematchStrength: row.prematch_strength,
           prematchAvailability: row.prematch_availability,
           promptDataLevel: row.prompt_data_level,

@@ -22,6 +22,12 @@ import {
   type StrategicSourceTrustTier,
   type StrategicSourceType,
 } from '../config/strategic-source-policy.js';
+import {
+  fetchFixturesByIds,
+  fetchPreMatchOdds,
+  type ApiFixture,
+} from './football-api.js';
+import { apiFootballOddsToSelections } from './canonical/api-football-odds-adapter.js';
 
 const REQUEST_TIMEOUT_MS = 90_000;
 const STRUCTURE_REQUEST_TIMEOUT_MS = 45_000;
@@ -104,6 +110,25 @@ export interface StrategicContextSourceMeta {
   trusted_source_count: number;
   rejected_source_count: number;
   rejected_domains: string[];
+  provider_fallback?: StrategicProviderFallbackMeta;
+}
+
+export interface StrategicProviderFallbackMeta {
+  provider: 'api-football';
+  status: 'provider_limited';
+  match_id: string;
+  fixture_available: boolean;
+  prematch_odds_available: boolean;
+  bookmaker_count: number;
+  market_count: number;
+  selection_count: number;
+  fixture_status?: string | null;
+  kickoff_at?: string | null;
+  league_id?: number | null;
+  season?: number | null;
+  round?: string | null;
+  venue?: string | null;
+  warnings: string[];
 }
 
 export interface StrategicConditionBlueprint {
@@ -150,6 +175,8 @@ export interface StrategicContextUsabilityOptions {
 
 export interface StrategicContextFetchOptions extends StrategicContextUsabilityOptions {
   leagueCountry?: string | null;
+  matchId?: string | null;
+  runId?: string | null;
   rescueMode?: boolean;
   /** Extra grounded attempt focused on recovering numeric priors (internal). */
   quantitativeGroundingPass?: boolean;
@@ -1012,6 +1039,221 @@ export function buildNoDataStrategicContext(searchedAt = new Date().toISOString(
   };
 }
 
+function uniqueCount(values: Array<string | null | undefined>): number {
+  return new Set(values.map((value) => cleanText(value)).filter(Boolean)).size;
+}
+
+function summarizePrematchOdds(rows: unknown[], fetchedAt: string): {
+  bookmakerCount: number;
+  marketCount: number;
+  selectionCount: number;
+} {
+  const selections = apiFootballOddsToSelections({
+    response: rows,
+    sourceKind: 'prematch',
+    fetchedAt,
+  });
+  return {
+    bookmakerCount: uniqueCount(selections.map((selection) => selection.bookmaker)),
+    marketCount: uniqueCount(selections.map((selection) => selection.market)),
+    selectionCount: selections.length,
+  };
+}
+
+function fixtureVenueLabel(fixture: ApiFixture | null | undefined): string | null {
+  const venue = fixture?.fixture?.venue;
+  if (!venue) return null;
+  const name = cleanText(venue.name);
+  const city = cleanText(venue.city);
+  if (name && city) return `${name}, ${city}`;
+  return name || city || null;
+}
+
+function inferCompetitionTypeFromProvider(homeLeague: string, fixture: ApiFixture | null | undefined): StrategicCompetitionType {
+  const leagueName = cleanText(fixture?.league?.name || homeLeague).toLowerCase();
+  const country = cleanText(fixture?.league?.country).toLowerCase();
+  if (country === 'world' || leagueName.includes('world cup') || leagueName.includes('international')) return 'international';
+  if (leagueName.includes('champions league') || leagueName.includes('europa league') || leagueName.includes('conference league')) return 'european';
+  if (leagueName.includes('cup')) return 'domestic_cup';
+  return '';
+}
+
+function buildProviderLimitedStrategicContext(input: {
+  homeTeam: string;
+  awayTeam: string;
+  league: string;
+  dateStr: string;
+  searchedAt: string;
+  matchId: string;
+  fixture: ApiFixture | null;
+  prematchOddsRows: unknown[];
+}): StrategicContext | null {
+  const odds = summarizePrematchOdds(input.prematchOddsRows, input.searchedAt);
+  const fixture = input.fixture;
+  if (!fixture && odds.selectionCount === 0) return null;
+
+  const kickoffAt = cleanText(fixture?.fixture?.date) || input.dateStr || null;
+  const round = cleanText(fixture?.league?.round) || null;
+  const venue = fixtureVenueLabel(fixture);
+  const fixtureStatus = cleanText(fixture?.fixture?.status?.short) || null;
+  const competitionType = inferCompetitionTypeFromProvider(input.league, fixture);
+  const oddsSentence = odds.selectionCount > 0
+    ? `Pre-match odds are available from API-Football (${odds.bookmakerCount} bookmaker(s), ${odds.marketCount} market(s), ${odds.selectionCount} selection(s)).`
+    : 'API-Football returned no pre-match odds rows for this fixture.';
+  const fixtureSentence = fixture
+    ? `API-Football confirms ${input.homeTeam} vs ${input.awayTeam} in ${fixture.league.name}${round ? ` (${round})` : ''}${kickoffAt ? `, kickoff ${kickoffAt}` : ''}${venue ? ` at ${venue}` : ''}.`
+    : `API-Football returned odds/provider facts for match ${input.matchId}, but fixture details were not available in the fallback fetch.`;
+  const limitationSentence = 'No trusted tactical/news context was found by grounded search, so this context is provider-limited and must not be treated as a strong strategic edge.';
+  const summary = `${fixtureSentence} ${oddsSentence} ${limitationSentence}`;
+  const summaryVi = `${fixtureSentence} ${oddsSentence} Khong co nguon tin chien thuat/tin tuc du tin cay tu grounded search, nen day chi la ngu canh gioi han tu provider.`;
+  const leaguePositions = fixture
+    ? `${fixture.league.name}${round ? ` ${round}` : ''}; provider fallback did not provide verified table/form positioning for both teams.`
+    : NO_DATA;
+  const source: StrategicContextSource = {
+    title: 'API-Football fixture and prematch odds feed',
+    url: 'https://www.api-football.com/',
+    domain: 'api-football.com',
+    publisher: 'api-football.com',
+    language: 'en',
+    source_type: 'stats_reference',
+    trust_tier: 'tier_2',
+  };
+  const warnings = [
+    'grounded_search_no_trusted_context',
+    ...(fixture ? [] : ['api_football_fixture_missing']),
+    ...(odds.selectionCount > 0 ? ['prematch_odds_reference_only'] : ['api_football_prematch_odds_missing']),
+    'provider_limited_not_strategic_edge',
+  ];
+
+  const sourceMeta: StrategicContextSourceMeta = {
+    search_quality: 'low',
+    web_search_queries: [],
+    sources: [source],
+    trusted_source_count: 1,
+    rejected_source_count: 0,
+    rejected_domains: [],
+    provider_fallback: {
+      provider: 'api-football',
+      status: 'provider_limited',
+      match_id: input.matchId,
+      fixture_available: !!fixture,
+      prematch_odds_available: odds.selectionCount > 0,
+      bookmaker_count: odds.bookmakerCount,
+      market_count: odds.marketCount,
+      selection_count: odds.selectionCount,
+      fixture_status: fixtureStatus,
+      kickoff_at: kickoffAt,
+      league_id: fixture?.league?.id ?? null,
+      season: fixture?.league?.season ?? null,
+      round,
+      venue,
+      warnings,
+    },
+  };
+
+  return {
+    ...buildNoDataStrategicContext(input.searchedAt),
+    league_positions: leaguePositions,
+    summary,
+    league_positions_vi: leaguePositions,
+    summary_vi: summaryVi,
+    competition_type: competitionType,
+    qualitative: {
+      en: {
+        ...EMPTY_NARRATIVE,
+        league_positions: leaguePositions,
+        summary,
+      },
+      vi: {
+        home_motivation: '',
+        away_motivation: '',
+        league_positions: leaguePositions,
+        fixture_congestion: '',
+        home_fixture_congestion: '',
+        away_fixture_congestion: '',
+        rotation_risk: '',
+        key_absences: '',
+        home_key_absences: '',
+        away_key_absences: '',
+        h2h_narrative: '',
+        summary: summaryVi,
+      },
+    },
+    source_meta: sourceMeta,
+  };
+}
+
+async function fetchProviderLimitedStrategicContext(
+  homeTeam: string,
+  awayTeam: string,
+  league: string,
+  dateStr: string,
+  searchedAt: string,
+  options: StrategicContextFetchOptions = {},
+): Promise<StrategicContext | null> {
+  const matchId = cleanText(options.matchId);
+  if (!matchId) return null;
+
+  const [fixtureResult, oddsResult] = await Promise.allSettled([
+    fetchFixturesByIds([matchId]),
+    fetchPreMatchOdds(matchId),
+  ]);
+  const fixtureRows = fixtureResult.status === 'fulfilled' ? fixtureResult.value : [];
+  const prematchOddsRows = oddsResult.status === 'fulfilled' ? oddsResult.value : [];
+  if (fixtureResult.status === 'rejected') {
+    console.warn('[strategic-context] Provider fallback fixture fetch failed:', fixtureResult.reason instanceof Error ? fixtureResult.reason.message : String(fixtureResult.reason));
+  }
+  if (oddsResult.status === 'rejected') {
+    console.warn('[strategic-context] Provider fallback prematch odds fetch failed:', oddsResult.reason instanceof Error ? oddsResult.reason.message : String(oddsResult.reason));
+  }
+
+  return buildProviderLimitedStrategicContext({
+    homeTeam,
+    awayTeam,
+    league,
+    dateStr,
+    searchedAt,
+    matchId,
+    fixture: fixtureRows[0] ?? null,
+    prematchOddsRows,
+  });
+}
+
+async function fetchProviderLimitedStrategicContextSafe(
+  homeTeam: string,
+  awayTeam: string,
+  league: string,
+  dateStr: string,
+  searchedAt: string,
+  options: StrategicContextFetchOptions = {},
+): Promise<StrategicContext | null> {
+  try {
+    return await fetchProviderLimitedStrategicContext(homeTeam, awayTeam, league, dateStr, searchedAt, options);
+  } catch (err) {
+    console.warn('[strategic-context] Provider-limited fallback failed:', err instanceof Error ? err.message : String(err));
+    return null;
+  }
+}
+
+function shouldUseProviderLimitedFallback(ctx: StrategicContext | null): boolean {
+  if (!ctx) return true;
+  const searchQuality = cleanText(ctx.source_meta?.search_quality).toLowerCase();
+  const trustedSourceCount = Number(ctx.source_meta?.trusted_source_count ?? 0);
+  const quantitativeCoverage = countStrategicQuantitativeCoverage(ctx.quantitative);
+  const narrativeCoverage = countStrategicNarrativeCoverage(ctx);
+  return (
+    isNoDataText(ctx.summary)
+    && quantitativeCoverage === 0
+    && (
+      narrativeCoverage <= 1
+      || trustedSourceCount === 0
+      || searchQuality === ''
+      || searchQuality === 'unknown'
+      || searchQuality === 'low'
+    )
+  );
+}
+
 function hasTopLeagueCoverage(ctx: Partial<StrategicContext>): boolean {
   const summary = cleanText(ctx.summary);
   if (!summary || isNoDataText(summary)) return false;
@@ -1351,6 +1593,7 @@ function shouldSpecializeCondition(
 async function specializeConditionForPriorityMatch(
   context: StrategicContext,
   draftText: string,
+  aiGatewayContext?: GeminiGenerateOptions['aiGatewayContext'],
 ): Promise<StrategicContext | null> {
   for (const attempt of [1, 2] as const) {
     const data = await generateGeminiContent(
@@ -1363,6 +1606,7 @@ async function specializeConditionForPriorityMatch(
         maxOutputTokens: config.geminiStrategicStructuredMaxOutputTokens,
         responseMimeType: 'application/json',
         thinkingBudget: config.geminiStrategicStructuredThinkingBudget,
+        aiGatewayContext,
       },
     );
     if (!data) continue;
@@ -1392,6 +1636,28 @@ async function specializeConditionForPriorityMatch(
     }
   }
   return null;
+}
+
+function buildStrategicAiGatewayContext(
+  homeTeam: string,
+  awayTeam: string,
+  league: string,
+  dateStr: string,
+  options: StrategicContextFetchOptions = {},
+): GeminiGenerateOptions['aiGatewayContext'] {
+  const matchId = cleanText(options.matchId);
+  const runId = cleanText(options.runId) || `${homeTeam} vs ${awayTeam}`;
+  return {
+    ...(matchId ? { matchId } : {}),
+    runId,
+    metadata: {
+      homeTeam,
+      awayTeam,
+      league,
+      dateStr,
+      highPriority: options.highPriority === true,
+    },
+  };
 }
 
 async function generateGeminiContent(
@@ -1452,6 +1718,7 @@ function reapplyConditionRefinementAfterQuantitativeChange(ctx: StrategicContext
 async function enrichQuantitativeFromGroundedNotes(
   draftText: string,
   existing: StrategicContextQuantitative,
+  aiGatewayContext?: GeminiGenerateOptions['aiGatewayContext'],
 ): Promise<StrategicContextQuantitative> {
   if (process.env['NODE_ENV'] === 'test') return existing;
   const prompt = `You extract ONLY explicit numeric football statistics already stated in GROUNDED NOTES.
@@ -1481,6 +1748,7 @@ ${draftText.slice(0, 14000)}`;
       maxOutputTokens: Math.min(4096, config.geminiStrategicStructuredMaxOutputTokens),
       responseMimeType: 'application/json',
       thinkingBudget: config.geminiStrategicStructuredThinkingBudget,
+      aiGatewayContext,
     });
     if (!data) return existing;
     const text = extractCandidateText(data);
@@ -1499,6 +1767,7 @@ async function tryQuantitativeBackfillFromNotes(
   ctx: StrategicContext,
   draftText: string,
   options: StrategicContextFetchOptions,
+  aiGatewayContext?: GeminiGenerateOptions['aiGatewayContext'],
 ): Promise<StrategicContext> {
   if (process.env['NODE_ENV'] === 'test') return ctx;
   if (!options.highPriority) return ctx;
@@ -1507,7 +1776,7 @@ async function tryQuantitativeBackfillFromNotes(
   if (Number(ctx.source_meta?.trusted_source_count ?? 0) < 2) return ctx;
   if (countStrategicQuantitativeCoverage(ctx.quantitative) >= 4) return ctx;
 
-  const merged = await enrichQuantitativeFromGroundedNotes(draftText, ctx.quantitative);
+  const merged = await enrichQuantitativeFromGroundedNotes(draftText, ctx.quantitative, aiGatewayContext);
   return reapplyConditionRefinementAfterQuantitativeChange({ ...ctx, quantitative: merged });
 }
 
@@ -1519,6 +1788,7 @@ async function fetchGroundedResearchDraft(
   options: StrategicContextFetchOptions = {},
 ): Promise<{ draftText: string; sourceMeta: StrategicContextSourceMeta; fallback: DraftFallbackPayload } | null> {
   const prompt = buildGroundedResearchDraftPrompt(homeTeam, awayTeam, league, dateStr, options);
+  const aiGatewayContext = buildStrategicAiGatewayContext(homeTeam, awayTeam, league, dateStr, options);
   const data = await generateGeminiContent(prompt, {
     stage: 'grounded_research',
     model: config.geminiStrategicGroundedModel || config.geminiModel,
@@ -1527,10 +1797,7 @@ async function fetchGroundedResearchDraft(
     maxOutputTokens: config.geminiStrategicGroundedMaxOutputTokens,
     responseMimeType: 'text/plain',
     thinkingBudget: config.geminiStrategicGroundedThinkingBudget,
-    aiGatewayContext: {
-      runId: `${homeTeam} vs ${awayTeam}`,
-      metadata: { homeTeam, awayTeam, league, dateStr, highPriority: options.highPriority === true },
-    },
+    aiGatewayContext,
   });
   if (!data) return null;
 
@@ -1557,10 +1824,7 @@ async function fetchGroundedResearchDraft(
           maxOutputTokens: config.geminiStrategicGroundedMaxOutputTokens,
           responseMimeType: 'text/plain',
           thinkingBudget: config.geminiStrategicGroundedThinkingBudget,
-          aiGatewayContext: {
-            runId: `${homeTeam} vs ${awayTeam}`,
-            metadata: { homeTeam, awayTeam, league, dateStr, highPriority: options.highPriority === true },
-          },
+          aiGatewayContext,
         },
       );
       if (rescueData) {
@@ -1602,10 +1866,7 @@ async function fetchGroundedResearchDraft(
           maxOutputTokens: config.geminiStrategicGroundedMaxOutputTokens,
           responseMimeType: 'text/plain',
           thinkingBudget: config.geminiStrategicGroundedThinkingBudget,
-          aiGatewayContext: {
-            runId: `${homeTeam} vs ${awayTeam}`,
-            metadata: { homeTeam, awayTeam, league, dateStr, highPriority: options.highPriority === true },
-          },
+          aiGatewayContext,
         },
       );
       if (quantPassData) {
@@ -1663,6 +1924,7 @@ async function buildStructuredStrategicContext(
   searchedAt: string,
   sourceMeta: StrategicContextSourceMeta,
   fallback: DraftFallbackPayload,
+  aiGatewayContext?: GeminiGenerateOptions['aiGatewayContext'],
 ): Promise<StrategicContext | null> {
   const draftOnlyContext = mergeStrategicContextWithDraftFallback(
     buildNoDataStrategicContext(searchedAt),
@@ -1679,6 +1941,7 @@ async function buildStructuredStrategicContext(
       maxOutputTokens: config.geminiStrategicStructuredMaxOutputTokens,
       responseMimeType: 'application/json',
       thinkingBudget: config.geminiStrategicStructuredThinkingBudget,
+      aiGatewayContext,
     },
   );
   if (!data) return draftOnlyContext;
@@ -1710,6 +1973,7 @@ async function buildStructuredStrategicContext(
         maxOutputTokens: config.geminiStrategicStructuredMaxOutputTokens,
         responseMimeType: 'application/json',
         thinkingBudget: config.geminiStrategicStructuredThinkingBudget,
+        aiGatewayContext,
       },
     );
     const repairedText = repaired ? extractCandidateText(repaired) : '';
@@ -2092,13 +2356,14 @@ export async function fetchStrategicContext(
   matchDate: string | null,
   options: StrategicContextFetchOptions = {},
 ): Promise<StrategicContext | null> {
-  if (!config.geminiApiKey) {
-    console.warn('[strategic-context] GEMINI_API_KEY not configured, skipping');
-    return null;
-  }
-
   const searchedAt = new Date().toISOString();
   const dateStr = matchDate || 'upcoming';
+  if (!config.geminiApiKey) {
+    console.warn('[strategic-context] GEMINI_API_KEY not configured, skipping');
+    return fetchProviderLimitedStrategicContextSafe(homeTeam, awayTeam, league, dateStr, searchedAt, options);
+  }
+
+  const aiGatewayContext = buildStrategicAiGatewayContext(homeTeam, awayTeam, league, dateStr, options);
 
   try {
     let grounded: { draftText: string; sourceMeta: StrategicContextSourceMeta; fallback: DraftFallbackPayload } | null = null;
@@ -2121,7 +2386,7 @@ export async function fetchStrategicContext(
       } else {
         console.warn('[strategic-context] Empty grounded draft from Gemini');
       }
-      return null;
+      return fetchProviderLimitedStrategicContextSafe(homeTeam, awayTeam, league, dateStr, searchedAt, options);
     }
 
     let activeDraftText = grounded.draftText;
@@ -2131,10 +2396,11 @@ export async function fetchStrategicContext(
       searchedAt,
       grounded.sourceMeta,
       grounded.fallback,
+      aiGatewayContext,
     );
     if (!structured) {
       console.error('[strategic-context] Structured JSON synthesis failed');
-      return null;
+      return fetchProviderLimitedStrategicContextSafe(homeTeam, awayTeam, league, dateStr, searchedAt, options);
     }
 
     if ((options.topLeague || options.highPriority) && !hasUsableStrategicContext(structured, { topLeague: options.topLeague })) {
@@ -2155,6 +2421,7 @@ export async function fetchStrategicContext(
             searchedAt,
             rescueGrounded.sourceMeta,
             rescueGrounded.fallback,
+            aiGatewayContext,
           );
           if (
             scoreStrategicContextCandidate(rescueStructured, { topLeague: options.topLeague }) >
@@ -2169,17 +2436,29 @@ export async function fetchStrategicContext(
       }
     }
 
-    structured = await tryQuantitativeBackfillFromNotes(structured, activeDraftText, options);
+    structured = await tryQuantitativeBackfillFromNotes(structured, activeDraftText, options, aiGatewayContext);
 
     if (shouldSpecializeCondition(structured, options)) {
       try {
-        const specialized = await specializeConditionForPriorityMatch(structured, activeDraftText);
+        const specialized = await specializeConditionForPriorityMatch(structured, activeDraftText, aiGatewayContext);
         if (specialized) {
           structured = specialized;
         }
       } catch (err) {
         console.warn('[strategic-context] Condition specialization pass failed:', err instanceof Error ? err.message : String(err));
       }
+    }
+
+    if (shouldUseProviderLimitedFallback(structured)) {
+      const providerFallback = await fetchProviderLimitedStrategicContextSafe(
+        homeTeam,
+        awayTeam,
+        league,
+        dateStr,
+        searchedAt,
+        options,
+      );
+      if (providerFallback) return providerFallback;
     }
 
     return structured;
@@ -2189,6 +2468,6 @@ export async function fetchStrategicContext(
     } else {
       console.error('[strategic-context] Error:', err instanceof Error ? err.message : err);
     }
-    return null;
+    return fetchProviderLimitedStrategicContextSafe(homeTeam, awayTeam, league, dateStr, searchedAt, options);
   }
 }

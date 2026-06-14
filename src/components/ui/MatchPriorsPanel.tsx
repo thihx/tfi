@@ -69,7 +69,7 @@ function LeaguePriorCard({ profile }: { profile: LeagueProfile | null }) {
       </div>
       {(profile.notes_en || profile.notes_vi) && (
         <div className="strategic-context-text strategic-context-text--offset-top">
-          {profile.notes_vi || profile.notes_en}
+          {profile.notes_en || profile.notes_vi}
         </div>
       )}
     </div>
@@ -127,7 +127,7 @@ function TeamPriorCard({
       )}
       {(profile.notes_en || profile.notes_vi) && (
         <div className="strategic-context-text strategic-context-text--offset-top">
-          {profile.notes_vi || profile.notes_en}
+          {profile.notes_en || profile.notes_vi}
         </div>
       )}
     </div>

@@ -13,6 +13,11 @@ vi.mock('../config.js', () => ({
   },
 }));
 
+vi.mock('../lib/football-api.js', () => ({
+  fetchFixturesByIds: vi.fn().mockResolvedValue([]),
+  fetchPreMatchOdds: vi.fn().mockResolvedValue([]),
+}));
+
 const fetchMock = vi.fn();
 vi.stubGlobal('fetch', fetchMock);
 
@@ -21,6 +26,9 @@ const {
   buildMachineConditionFromBlueprint,
   hasUsableStrategicContext,
 } = await import('../lib/strategic-context.service.js');
+const footballApi = await import('../lib/football-api.js');
+const gemini = await import('../lib/gemini.js');
+const aiGateway = await import('../lib/ai-gateway.js');
 
 function makeGeminiResponse(text: string, groundingMetadata?: Record<string, unknown>) {
   return {
@@ -39,6 +47,10 @@ function makeGeminiResponse(text: string, groundingMetadata?: Record<string, unk
 
 beforeEach(() => {
   fetchMock.mockReset();
+  vi.mocked(footballApi.fetchFixturesByIds).mockReset();
+  vi.mocked(footballApi.fetchFixturesByIds).mockResolvedValue([]);
+  vi.mocked(footballApi.fetchPreMatchOdds).mockReset();
+  vi.mocked(footballApi.fetchPreMatchOdds).mockResolvedValue([]);
 });
 
 describe('strategic-context.service', () => {
@@ -236,6 +248,210 @@ ALERT_RATIONALE:`,
     expect(prompt).toContain('Do NOT infer team strength solely from brand size, reputation, or club-name recognition.');
     expect(prompt).toContain('For european/international/friendly matches: the teams are from different domestic leagues, so do NOT compare their league positions directly.');
     expect(prompt).toContain('If competition_type is unknown or unclear, leave it as an empty string and disable league-position-gap reasoning.');
+  });
+
+  test('falls back to provider-limited context when grounded search yields no usable pre-match facts', async () => {
+    fetchMock
+      .mockResolvedValueOnce(makeGeminiResponse(
+        `COMPETITION_TYPE: international
+HOME_MOTIVATION: No data found
+AWAY_MOTIVATION: No data found
+LEAGUE_POSITIONS: No data found
+FIXTURE_CONGESTION: No data found
+ROTATION_RISK: No data found
+KEY_ABSENCES: No data found
+H2H_NARRATIVE: No data found
+SUMMARY: No data found
+HOME_LAST5_POINTS: null
+AWAY_LAST5_POINTS: null
+HOME_LAST5_GOALS_FOR: null
+AWAY_LAST5_GOALS_FOR: null
+HOME_LAST5_GOALS_AGAINST: null
+AWAY_LAST5_GOALS_AGAINST: null
+HOME_HOME_GOALS_AVG: null
+AWAY_AWAY_GOALS_AVG: null
+HOME_OVER_2_5_RATE_LAST10: null
+AWAY_OVER_2_5_RATE_LAST10: null
+HOME_BTTS_RATE_LAST10: null
+AWAY_BTTS_RATE_LAST10: null
+HOME_CLEAN_SHEET_RATE_LAST10: null
+AWAY_CLEAN_SHEET_RATE_LAST10: null
+HOME_FAILED_TO_SCORE_RATE_LAST10: null
+AWAY_FAILED_TO_SCORE_RATE_LAST10: null
+ALERT_WINDOW_START: null
+ALERT_WINDOW_END: null
+PREFERRED_SCORE_STATE: any
+PREFERRED_GOAL_STATE: any
+FAVOURED_SIDE: none
+ALERT_RATIONALE:`))
+      .mockResolvedValueOnce(makeGeminiResponse(JSON.stringify({
+        qualitative_en: {
+          home_motivation: 'No data found',
+          away_motivation: 'No data found',
+          league_positions: 'No data found',
+          fixture_congestion: 'No data found',
+          rotation_risk: 'No data found',
+          key_absences: 'No data found',
+          h2h_narrative: 'No data found',
+          summary: 'No data found',
+        },
+        qualitative_vi: {
+          home_motivation: 'Khong tim thay du lieu',
+          away_motivation: 'Khong tim thay du lieu',
+          league_positions: 'Khong tim thay du lieu',
+          fixture_congestion: 'Khong tim thay du lieu',
+          rotation_risk: 'Khong tim thay du lieu',
+          key_absences: 'Khong tim thay du lieu',
+          h2h_narrative: 'Khong tim thay du lieu',
+          summary: 'Khong tim thay du lieu',
+        },
+        quantitative: {},
+        competition_type: 'international',
+        condition_blueprint: {
+          alert_window_start: null,
+          alert_window_end: null,
+          preferred_score_state: 'any',
+          preferred_goal_state: 'any',
+          favoured_side: 'none',
+          alert_rationale_en: '',
+          alert_rationale_vi: '',
+        },
+      })));
+    vi.mocked(footballApi.fetchFixturesByIds).mockResolvedValueOnce([{
+      fixture: {
+        id: 1489374,
+        referee: null,
+        timezone: 'UTC',
+        date: '2026-06-14T17:00:00+00:00',
+        timestamp: 1781456400,
+        periods: { first: null, second: null },
+        venue: { id: 1, name: 'NRG Stadium', city: 'Houston' },
+        status: { long: 'Not Started', short: 'NS', elapsed: null },
+      },
+      league: {
+        id: 1,
+        name: 'World Cup',
+        country: 'World',
+        logo: '',
+        flag: null,
+        season: 2026,
+        round: 'Group Stage - 1',
+      },
+      teams: {
+        home: { id: 25, name: 'Germany', logo: '', winner: null },
+        away: { id: 5530, name: 'Curacao', logo: '', winner: null },
+      },
+      goals: { home: null, away: null },
+      score: {},
+    }] as never);
+    vi.mocked(footballApi.fetchPreMatchOdds).mockResolvedValueOnce([{
+      bookmakers: [{
+        id: 1,
+        name: 'Bookmaker A',
+        bets: [
+          { id: 1, name: 'Match Winner', values: [{ value: 'Home', odd: '1.50' }, { value: 'Away', odd: '6.50' }] },
+          { id: 5, name: 'Goals Over/Under', values: [{ value: 'Over 2.5', odd: '1.82' }, { value: 'Under 2.5', odd: '2.00' }] },
+        ],
+      }],
+    }] as never);
+
+    const context = await fetchStrategicContext('Germany', 'Curacao', 'World Cup', '2026-06-14', {
+      matchId: '1489374',
+      leagueCountry: 'World',
+    });
+
+    expect(footballApi.fetchFixturesByIds).toHaveBeenCalledWith(['1489374']);
+    expect(footballApi.fetchPreMatchOdds).toHaveBeenCalledWith('1489374');
+    expect(context?.summary).toContain('API-Football confirms Germany vs Curacao');
+    expect(context?.summary).toContain('Pre-match odds are available');
+    expect(context?.competition_type).toBe('international');
+    expect(context?.source_meta.search_quality).toBe('low');
+    expect(context?.source_meta.trusted_source_count).toBe(1);
+    expect(context?.source_meta.provider_fallback).toMatchObject({
+      provider: 'api-football',
+      status: 'provider_limited',
+      match_id: '1489374',
+      fixture_available: true,
+      prematch_odds_available: true,
+      bookmaker_count: 1,
+      market_count: 2,
+      selection_count: 4,
+    });
+    expect(hasUsableStrategicContext(context, { topLeague: true })).toBe(false);
+  });
+
+  test('falls back to provider-limited context when AI Gateway blocks strategic LLM calls', async () => {
+    const gatewayError = new aiGateway.AiGatewayBlockedError(
+      'AI Gateway blocked Gemini call: breaker_open:loop_detected',
+      {
+        allowed: false,
+        mode: 'enforce',
+        decision: 'block',
+        reason: 'breaker_open:loop_detected',
+        severity: 'critical',
+        estimatedInputTokens: 100,
+        estimatedOutputTokens: 1024,
+        estimatedCostUsd: 0.001,
+      },
+      {
+        provider: 'gemini',
+        model: 'gemini-3.5-flash',
+        featureKey: 'tfi.strategic_context',
+        operation: 'tfi.strategic_context.grounded_research',
+        matchId: '1489374',
+      },
+    );
+    vi.spyOn(gemini, 'generateGeminiContent').mockRejectedValueOnce(gatewayError);
+    vi.mocked(footballApi.fetchFixturesByIds).mockResolvedValueOnce([{
+      fixture: {
+        id: 1489374,
+        date: '2026-06-14T17:00:00+00:00',
+        timestamp: 1781456400,
+        periods: { first: null, second: null },
+        venue: { id: 1, name: 'NRG Stadium', city: 'Houston' },
+        status: { long: 'Not Started', short: 'NS', elapsed: null },
+      },
+      league: {
+        id: 1,
+        name: 'World Cup',
+        country: 'World',
+        logo: '',
+        flag: null,
+        season: 2026,
+        round: 'Group Stage - 1',
+      },
+      teams: {
+        home: { id: 25, name: 'Germany', logo: '', winner: null },
+        away: { id: 5530, name: 'Curacao', logo: '', winner: null },
+      },
+      goals: { home: null, away: null },
+      score: {},
+    }] as never);
+    vi.mocked(footballApi.fetchPreMatchOdds).mockResolvedValueOnce([{
+      bookmakers: [{
+        id: 1,
+        name: 'Bookmaker A',
+        bets: [
+          { id: 1, name: 'Match Winner', values: [{ value: 'Home', odd: '1.50' }] },
+        ],
+      }],
+    }] as never);
+
+    const context = await fetchStrategicContext('Germany', 'Curacao', 'World Cup', '2026-06-14', {
+      matchId: '1489374',
+      leagueCountry: 'World',
+    });
+
+    expect(context?.summary).toContain('API-Football confirms Germany vs Curacao');
+    expect(context?.source_meta.provider_fallback).toMatchObject({
+      provider: 'api-football',
+      status: 'provider_limited',
+      match_id: '1489374',
+      fixture_available: true,
+      prematch_odds_available: true,
+    });
+    expect(footballApi.fetchFixturesByIds).toHaveBeenCalledWith(['1489374']);
+    expect(footballApi.fetchPreMatchOdds).toHaveBeenCalledWith('1489374');
   });
 
   test('uses strategic-context-specific Gemini model and thinking config for grounded and structured calls', async () => {

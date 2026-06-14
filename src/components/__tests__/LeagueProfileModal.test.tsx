@@ -133,6 +133,34 @@ describe('LeagueProfileModal', () => {
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
       profile: expect.objectContaining({ avg_goals: 3.1, tempo_tier: 'high' }),
       notes_en: 'Fast and open league.',
+      notes_vi: '',
+    }));
+  });
+
+  test('uses a single note field and stores it as the English/default note', () => {
+    const onSave = vi.fn();
+    render(
+      <LeagueProfileModal
+        league={league}
+        profile={{ ...profile, notes_en: '', notes_vi: 'Legacy Vietnamese note.' }}
+        loading={false}
+        saving={false}
+        onClose={() => {}}
+        onSave={onSave}
+        onDelete={() => {}}
+      />,
+    );
+
+    expect(screen.queryByLabelText('English')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Tiếng Việt')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Note')).toHaveValue('Legacy Vietnamese note.');
+
+    fireEvent.change(screen.getByLabelText('Note'), { target: { value: 'Default English note.' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Update Profile' }));
+
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+      notes_en: 'Default English note.',
+      notes_vi: '',
     }));
   });
 

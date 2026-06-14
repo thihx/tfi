@@ -300,6 +300,27 @@ describe('provider-fixture-mapping-service', () => {
     });
 
     expect(scoreProviderFixtureCandidate(
+      source({
+        leagueId: 141,
+        leagueName: 'Segunda División',
+        homeName: 'Malaga',
+        awayName: 'Almeria',
+      }),
+      candidate({
+        leagueId: 567,
+        leagueName: 'La Liga 2',
+        homeName: 'Málaga',
+        awayName: 'Almería',
+      }),
+      toFixture,
+    )).toMatchObject({
+      rejected: false,
+      score: 95,
+      confidence: 'high',
+      reasons: ['home_name_match', 'away_name_match', 'kickoff_within_15m', 'league_name_match'],
+    });
+
+    expect(scoreProviderFixtureCandidate(
       source(),
       candidate({
         kickoffTimestamp: null,
@@ -322,6 +343,61 @@ describe('provider-fixture-mapping-service', () => {
       confidence: 'medium',
       warnings: [],
     });
+  });
+
+  it('revalidates stored automatic mappings when fetched fixture now proves high confidence', async () => {
+    mockGetProviderFixtureMapping.mockResolvedValueOnce({
+      id: '1',
+      match_id: '164327',
+      provider: 'sportmonks',
+      provider_fixture_id: 'sm-987',
+      confidence: 'medium',
+      mapping_method: 'date_team_match',
+      evidence: { warnings: ['league_uncertain_for_mapping'] },
+      first_seen_at: kickoffIso,
+      last_seen_at: kickoffIso,
+    });
+    const fetchFixtureByProviderId = vi.fn().mockResolvedValue(candidate({
+      id: 'sm-987',
+      leagueId: 567,
+      leagueName: 'La Liga 2',
+      homeName: 'Málaga',
+      awayName: 'Almería',
+    }));
+
+    const result = await resolveProviderFixtureMapping({
+      provider: 'sportmonks',
+      source: source({
+        leagueId: 141,
+        leagueName: 'Segunda División',
+        homeName: 'Malaga',
+        awayName: 'Almeria',
+      }),
+      candidateToFixture: toFixture,
+      fetchFixtureByProviderId,
+    });
+
+    expect(result).toMatchObject({
+      source: 'existing',
+      providerFixtureId: 'sm-987',
+      confidence: 'high',
+      mappingMethod: 'date_team_match',
+      score: 95,
+      canUseForMoneyDecision: true,
+      reasons: ['stored_mapping_revalidated', 'home_name_match', 'away_name_match', 'kickoff_within_15m', 'league_name_match'],
+      warnings: [],
+    });
+    expect(mockUpsertProviderFixtureMapping).toHaveBeenCalledWith(expect.objectContaining({
+      match_id: '164327',
+      provider: 'sportmonks',
+      provider_fixture_id: 'sm-987',
+      confidence: 'high',
+      evidence: expect.objectContaining({
+        previousStored: expect.objectContaining({
+          storedConfidence: 'medium',
+        }),
+      }),
+    }));
   });
 
   it('returns not_found without storing evidence when no candidate is safe enough', async () => {

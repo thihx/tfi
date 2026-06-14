@@ -6,7 +6,6 @@ import { useUiLanguage } from '@/hooks/useUiLanguage';
 import type { Recommendation, WatchlistItem } from '@/types';
 import {
   getStrategicNarrative,
-  getStrategicQuantitativeEntries,
   getStrategicRefreshMeta,
   getStrategicSourceMeta,
   hasStrategicNarrative,
@@ -39,10 +38,7 @@ export function MatchHubContextView({ watchlist, recs }: { watchlist: WatchlistI
   const h2hNarrative = getStrategicNarrative(ctx, 'h2h_narrative', uiLanguage);
   const sourceMeta = getStrategicSourceMeta(ctx);
   const refreshMeta = getStrategicRefreshMeta(ctx);
-  const quantitativeEntries = getStrategicQuantitativeEntries(ctx);
   const structuredContext = isStructuredStrategicContext(ctx);
-  const trustedDomains = Array.from(new Set((sourceMeta?.sources || []).map((source) => source.domain).filter(Boolean)));
-  const searchQueries = (sourceMeta?.web_search_queries || []).filter(Boolean);
 
   if (!watchlist && !latestRec) {
     return (
@@ -109,19 +105,6 @@ export function MatchHubContextView({ watchlist, recs }: { watchlist: WatchlistI
             {h2hNarrative && <InfoBlock label="H2H Narrative" value={h2hNarrative} colSpan />}
             {ctx.ai_condition && <InfoBlock label="Condition signal" value={ctx.ai_condition} highlight />}
             {ctx.ai_condition_reason_vi && <InfoBlock label="Condition Reason (VI)" value={ctx.ai_condition_reason_vi} colSpan />}
-            {structuredContext && quantitativeEntries.length > 0 && (
-              <InfoBlock
-                label="Quantitative Priors"
-                value={quantitativeEntries.map((entry) => `${entry.label}: ${entry.value}`).join(' | ')}
-                colSpan
-              />
-            )}
-            {structuredContext && trustedDomains.length > 0 && (
-              <InfoBlock label="Trusted Domains" value={trustedDomains.join(', ')} colSpan />
-            )}
-            {structuredContext && searchQueries.length > 0 && (
-              <InfoBlock label="Search Queries" value={searchQueries.join(' | ')} colSpan />
-            )}
             {!structuredContext && (
               <InfoBlock
                 label="Trust Note"

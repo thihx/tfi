@@ -108,10 +108,12 @@ export async function listAiGatewayAdminRecipients(): Promise<AiGatewayAdminReci
 
 export async function listAiGatewayIncidents(limit = 10): Promise<AiGatewayIncidentRow[]> {
   const result = await query<AiGatewayIncidentRow>(
-    `SELECT id, created_at, updated_at, resolved_at, status, severity, incident_type, title,
-            feature_key, operation, provider, model, match_id, run_id, breaker_id, metadata
-       FROM ai_gateway_incidents
-      ORDER BY CASE status WHEN 'open' THEN 0 WHEN 'acknowledged' THEN 1 ELSE 2 END, created_at DESC
+    `SELECT i.id, i.created_at, i.updated_at, i.resolved_at, i.status, i.severity, i.incident_type, i.title,
+            i.feature_key, i.operation, i.provider, i.model, i.match_id, i.run_id, i.breaker_id, i.metadata
+       FROM ai_gateway_incidents i
+       LEFT JOIN ai_gateway_breakers b ON b.id = i.breaker_id
+      WHERE NOT (i.status = 'open' AND i.breaker_id IS NOT NULL AND b.status = 'closed')
+      ORDER BY CASE i.status WHEN 'open' THEN 0 WHEN 'acknowledged' THEN 1 ELSE 2 END, i.created_at DESC
       LIMIT $1`,
     [Math.min(Math.max(limit, 1), 50)],
   );
@@ -166,16 +168,33 @@ export async function updateAiGatewayIncidentStatus(
 
 export async function closeAiGatewayBreaker(id: number, actor: string, note?: string): Promise<AiGatewayBreakerRow | null> {
   const result = await query<AiGatewayBreakerRow>(
-    `UPDATE ai_gateway_breakers
-        SET status = 'closed',
-            updated_at = NOW(),
-            closed_at = NOW(),
-            metadata = COALESCE(metadata, '{}'::jsonb)
-              || jsonb_build_object('closedBy', $2::text, 'closeNote', $3::text, 'closedActionAt', NOW())
-      WHERE id = $1
-        AND status = 'open'
-      RETURNING id, created_at, updated_at, opened_at, closed_at, status, scope_type, scope_key,
-                reason, severity, opened_by, metadata`,
+    `WITH closed AS (
+       UPDATE ai_gateway_breakers
+          SET status = 'closed',
+              updated_at = NOW(),
+              closed_at = NOW(),
+              metadata = COALESCE(metadata, '{}'::jsonb)
+                || jsonb_build_object('closedBy', $2::text, 'closeNote', $3::text, 'closedActionAt', NOW())
+        WHERE id = $1
+          AND status = 'open'
+        RETURNING id, created_at, updated_at, opened_at, closed_at, status, scope_type, scope_key,
+                  reason, severity, opened_by, metadata
+     ),
+     resolved_incidents AS (
+       UPDATE ai_gateway_incidents
+          SET status = 'resolved',
+              updated_at = NOW(),
+              resolved_at = NOW(),
+              metadata = COALESCE(metadata, '{}'::jsonb)
+                || jsonb_build_object('resolvedBy', $2::text, 'resolveNote', $3::text, 'resolvedWithBreakerClose', TRUE, 'resolvedActionAt', NOW())
+        WHERE breaker_id = $1
+          AND status = 'open'
+          AND EXISTS (SELECT 1 FROM closed)
+        RETURNING id
+     )
+     SELECT id, created_at, updated_at, opened_at, closed_at, status, scope_type, scope_key,
+            reason, severity, opened_by, metadata
+       FROM closed`,
     [id, actor, note ?? null],
   );
   return result.rows[0] ?? null;

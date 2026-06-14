@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { closePool } from '../db/pool.js';
+import { config } from '../config.js';
 import {
   buildApiFootballEventsEnvelope,
   buildApiFootballFetchErrorEnvelope,
@@ -9,13 +10,6 @@ import {
   buildApiFootballScoreClockEnvelope,
   buildApiFootballStatisticsEnvelope,
 } from '../lib/canonical/api-football-adapter.js';
-import {
-  buildSportmonksAccessErrorEnvelope,
-  buildSportmonksEventsEnvelope,
-  buildSportmonksFixtureIdentityEnvelope,
-  buildSportmonksScoreClockEnvelope,
-  buildSportmonksStatisticsEnvelope,
-} from '../lib/canonical/sportmonks-adapter.js';
 import {
   buildCanonicalFixtureIdentity,
   buildProviderEnvelope,
@@ -26,7 +20,6 @@ import {
   THE_ODDS_API_PROVIDER,
   type TheOddsApiEventLike,
 } from '../lib/canonical/the-odds-api-adapter.js';
-import { config } from '../config.js';
 import {
   fetchFixtureEvents,
   fetchFixtureStatistics,
@@ -34,7 +27,10 @@ import {
   fetchLiveOdds,
   type ApiFixture,
 } from '../lib/football-api.js';
-import { resolveProviderFixtureMapping, type ProviderFixtureMappingCandidate } from '../lib/provider-fixture-mapping-service.js';
+import {
+  resolveProviderFixtureMapping,
+  type ProviderFixtureMappingCandidate,
+} from '../lib/provider-fixture-mapping-service.js';
 import {
   buildLiveProviderFusionSnapshot,
   compactFusionSnapshotForAudit,
@@ -42,22 +38,14 @@ import {
 } from '../lib/provider-fusion-snapshot.js';
 import { closeRedis } from '../lib/redis.js';
 import {
-  fetchSportmonksFixtureById,
-  fetchSportmonksFixturesByDate,
-  normalizeSportmonksFixtures,
-  SPORTMONKS_PROVIDER,
-} from '../lib/sportmonks-api.js';
-import { getSportmonksFixtureSides, type NormalizedSportmonksFixture } from '../lib/sportmonks-normalize.js';
-import { fetchTheOddsApiOdds, inferTheOddsApiQuotaState } from '../lib/the-odds-api.js';
-import { createProviderFixtureSample } from '../repos/provider-fixture-samples.repo.js';
+  fetchTheOddsApiOdds,
+  inferTheOddsApiQuotaState,
+} from '../lib/the-odds-api.js';
 
 interface Args {
   matchId: string;
+  sportKey: string;
   outJson: string;
-  persistSample: boolean;
-  includeSportmonks: boolean;
-  includeTheOddsApi: boolean;
-  theOddsApiSportKey: string;
 }
 
 function readArg(name: string): string | null {
@@ -68,20 +56,13 @@ function readArg(name: string): string | null {
   return idx >= 0 ? process.argv[idx + 1] ?? null : null;
 }
 
-function hasFlag(name: string): boolean {
-  return process.argv.includes(`--${name}`);
-}
-
 function parseArgs(): Args {
   const matchId = readArg('match-id') ?? '';
   if (!matchId) throw new Error('Missing required --match-id <api-football-fixture-id>');
   return {
     matchId,
+    sportKey: readArg('sport-key') ?? config.theOddsApiDefaultSoccerSportKey,
     outJson: readArg('out-json') ?? '',
-    persistSample: hasFlag('persist-sample'),
-    includeSportmonks: !hasFlag('no-sportmonks') && Boolean(config.sportmonksApiToken) && config.sportmonksEnabled,
-    includeTheOddsApi: !hasFlag('no-theoddsapi') && Boolean(config.theOddsApiToken) && config.theOddsApiEnabled,
-    theOddsApiSportKey: readArg('theoddsapi-sport-key') ?? config.theOddsApiDefaultSoccerSportKey,
   };
 }
 
@@ -91,31 +72,6 @@ async function callOrError<T>(fn: () => Promise<T>): Promise<{ ok: true; value: 
   } catch (error) {
     return { ok: false, error };
   }
-}
-
-function sportmonksMappingCandidate(fixture: NormalizedSportmonksFixture): ProviderFixtureMappingCandidate {
-  const sides = getSportmonksFixtureSides(fixture);
-  return {
-    providerFixtureId: fixture.providerFixtureId,
-    kickoffAtUtc: fixture.startingAt,
-    kickoffTimestamp: fixture.startingAtTimestamp,
-    leagueId: fixture.leagueId,
-    homeName: sides.home?.name ?? '',
-    awayName: sides.away?.name ?? '',
-  };
-}
-
-function theOddsApiMappingCandidate(event: TheOddsApiEventLike): ProviderFixtureMappingCandidate {
-  const kickoffMs = Date.parse(String(event.commence_time ?? ''));
-  return {
-    providerFixtureId: String(event.id ?? ''),
-    kickoffAtUtc: String(event.commence_time ?? ''),
-    kickoffTimestamp: Number.isFinite(kickoffMs) ? Math.floor(kickoffMs / 1000) : null,
-    leagueId: String(event.sport_key ?? ''),
-    leagueName: String(event.sport_title ?? ''),
-    homeName: String(event.home_team ?? ''),
-    awayName: String(event.away_team ?? ''),
-  };
 }
 
 function apiMappingSource(fixture: ApiFixture) {
@@ -130,11 +86,20 @@ function apiMappingSource(fixture: ApiFixture) {
   };
 }
 
-function dateKey(fixture: ApiFixture): string {
-  return fixture.fixture.date.slice(0, 10);
+function theOddsEventCandidate(event: TheOddsApiEventLike): ProviderFixtureMappingCandidate {
+  const kickoffMs = Date.parse(String(event.commence_time ?? ''));
+  return {
+    providerFixtureId: String(event.id ?? ''),
+    kickoffAtUtc: String(event.commence_time ?? ''),
+    kickoffTimestamp: Number.isFinite(kickoffMs) ? Math.floor(kickoffMs / 1000) : null,
+    leagueId: String(event.sport_key ?? ''),
+    leagueName: String(event.sport_title ?? ''),
+    homeName: String(event.home_team ?? ''),
+    awayName: String(event.away_team ?? ''),
+  };
 }
 
-function mappingWindow(fixture: ApiFixture): { from: string; to: string } {
+function windowForFixture(fixture: ApiFixture): { from: string; to: string } {
   const kickoffMs = fixture.fixture.timestamp * 1000;
   return {
     from: new Date(kickoffMs - 6 * 60 * 60_000).toISOString(),
@@ -168,70 +133,7 @@ async function buildApiFootballProvider(matchId: string): Promise<ProviderFusion
   };
 }
 
-async function buildSportmonksProvider(apiFixture: ApiFixture): Promise<{
-  provider: ProviderFusionSourceEnvelopes | null;
-  warnings: string[];
-}> {
-  if (!config.sportmonksApiToken || !config.sportmonksEnabled) {
-    return { provider: null, warnings: ['sportmonks_shadow_disabled_or_token_missing'] };
-  }
-
-  const fetchedAt = new Date().toISOString();
-  try {
-    const resolved = await resolveProviderFixtureMapping({
-      provider: SPORTMONKS_PROVIDER,
-      source: apiMappingSource(apiFixture),
-      candidateToFixture: sportmonksMappingCandidate,
-      fetchFixtureByProviderId: async (providerFixtureId) => {
-        const response = await fetchSportmonksFixtureById(providerFixtureId, {
-          consumer: 'provider-fusion-shadow',
-          jobName: 'provider-fusion-shadow',
-        });
-        return normalizeSportmonksFixtures(response.data)[0] ?? null;
-      },
-      fetchCandidatesByDate: async (date) => {
-        const response = await fetchSportmonksFixturesByDate(date, {
-          consumer: 'provider-fusion-shadow',
-          jobName: 'provider-fusion-shadow',
-        });
-        return normalizeSportmonksFixtures(response.data);
-      },
-    });
-
-    if (!resolved.fixture) {
-      return { provider: null, warnings: resolved.warnings };
-    }
-    return {
-      provider: {
-        fixture: buildSportmonksFixtureIdentityEnvelope(resolved.fixture, { matchId: apiFixture.fixture.id, fetchedAt }),
-        scoreClock: buildSportmonksScoreClockEnvelope(resolved.fixture, { matchId: apiFixture.fixture.id, fetchedAt }),
-        events: buildSportmonksEventsEnvelope(resolved.fixture, { matchId: apiFixture.fixture.id, fetchedAt }),
-        statistics: buildSportmonksStatisticsEnvelope(resolved.fixture, { matchId: apiFixture.fixture.id, fetchedAt }),
-      },
-      warnings: resolved.warnings,
-    };
-  } catch (error) {
-    return {
-      provider: {
-        fixture: buildSportmonksAccessErrorEnvelope({
-          role: 'fixture_identity',
-          matchId: apiFixture.fixture.id,
-          error,
-          fetchedAt,
-          warnings: [`sportmonks_shadow_mapping_failed:${dateKey(apiFixture)}`],
-        }),
-      },
-      warnings: ['sportmonks_shadow_mapping_failed'],
-    };
-  }
-}
-
-function buildTheOddsApiFixtureEnvelope(
-  apiFixture: ApiFixture,
-  event: TheOddsApiEventLike,
-  fetchedAt: string,
-  confidence: 'verified' | 'high' | 'medium' | 'low' | 'unknown',
-) {
+function buildTheOddsFixtureEnvelope(apiFixture: ApiFixture, event: TheOddsApiEventLike, fetchedAt: string, confidence: 'verified' | 'high' | 'medium' | 'low' | 'unknown') {
   return buildProviderEnvelope({
     provider: THE_ODDS_API_PROVIDER,
     role: 'fixture_identity',
@@ -241,7 +143,9 @@ function buildTheOddsApiFixtureEnvelope(
     raw: null,
     normalized: buildCanonicalFixtureIdentity({
       matchId: apiFixture.fixture.id,
-      providerFixtureIds: { [THE_ODDS_API_PROVIDER]: String(event.id ?? '') },
+      providerFixtureIds: {
+        [THE_ODDS_API_PROVIDER]: String(event.id ?? ''),
+      },
       kickoffAtUtc: String(event.commence_time ?? ''),
       league: {
         id: String(event.sport_key ?? ''),
@@ -260,20 +164,21 @@ function buildTheOddsApiFixtureEnvelope(
   });
 }
 
-async function buildTheOddsApiProvider(apiFixture: ApiFixture, sportKey: string): Promise<{
+async function buildTheOddsProvider(apiFixture: ApiFixture, sportKey: string): Promise<{
   provider: ProviderFusionSourceEnvelopes | null;
   warnings: string[];
 }> {
-  if (!config.theOddsApiToken || !config.theOddsApiEnabled) {
-    return { provider: null, warnings: ['the_odds_api_shadow_disabled_or_token_missing'] };
-  }
   const fetchedAt = new Date().toISOString();
+  if (!config.theOddsApiEnabled || !config.theOddsApiToken) {
+    return { provider: null, warnings: ['the_odds_api_disabled_or_token_missing'] };
+  }
+
   try {
-    const win = mappingWindow(apiFixture);
+    const win = windowForFixture(apiFixture);
     const resolved = await resolveProviderFixtureMapping({
       provider: THE_ODDS_API_PROVIDER,
       source: apiMappingSource(apiFixture),
-      candidateToFixture: theOddsApiMappingCandidate,
+      candidateToFixture: theOddsEventCandidate,
       fetchFixtureByProviderId: async (providerFixtureId) => {
         const response = await fetchTheOddsApiOdds({
           sportKey,
@@ -281,8 +186,8 @@ async function buildTheOddsApiProvider(apiFixture: ApiFixture, sportKey: string)
           markets: config.theOddsApiMarkets,
           bookmakers: config.theOddsApiBookmakers,
           eventIds: [providerFixtureId],
-          consumer: 'provider-fusion-shadow',
-          jobName: 'provider-fusion-shadow',
+          consumer: 'the-odds-api-shadow',
+          jobName: 'the-odds-api-shadow',
         });
         return response.data[0] ?? null;
       },
@@ -294,33 +199,38 @@ async function buildTheOddsApiProvider(apiFixture: ApiFixture, sportKey: string)
           bookmakers: config.theOddsApiBookmakers,
           commenceTimeFrom: win.from,
           commenceTimeTo: win.to,
-          consumer: 'provider-fusion-shadow',
-          jobName: 'provider-fusion-shadow',
+          consumer: 'the-odds-api-shadow',
+          jobName: 'the-odds-api-shadow',
         });
         return response.data;
       },
     });
-    if (!resolved.fixture) return { provider: null, warnings: resolved.warnings };
-    const odds = await fetchTheOddsApiOdds({
+
+    if (!resolved.fixture) {
+      return { provider: null, warnings: resolved.warnings };
+    }
+
+    const oddsResult = await fetchTheOddsApiOdds({
       sportKey,
       regions: config.theOddsApiRegions,
       markets: config.theOddsApiMarkets,
       bookmakers: config.theOddsApiBookmakers,
       eventIds: [resolved.providerFixtureId],
-      consumer: 'provider-fusion-shadow',
-      jobName: 'provider-fusion-shadow',
+      consumer: 'the-odds-api-shadow',
+      jobName: 'the-odds-api-shadow',
     });
-    const event = odds.data[0] ?? resolved.fixture;
+    const event = oddsResult.data[0] ?? resolved.fixture;
+    const quota = inferTheOddsApiQuotaState(oddsResult.quota, oddsResult.statusCode);
     return {
       provider: {
-        fixture: buildTheOddsApiFixtureEnvelope(apiFixture, event, fetchedAt, resolved.confidence),
+        fixture: buildTheOddsFixtureEnvelope(apiFixture, event, fetchedAt, resolved.confidence),
         odds: buildTheOddsApiOddsEnvelope({
           matchId: String(apiFixture.fixture.id),
           event,
           fetchedAt,
-          statusCode: odds.statusCode,
-          latencyMs: odds.latencyMs,
-          quota: inferTheOddsApiQuotaState(odds.quota, odds.statusCode),
+          statusCode: oddsResult.statusCode,
+          latencyMs: oddsResult.latencyMs,
+          quota,
           raw: null,
           warnings: resolved.warnings,
         }),
@@ -334,10 +244,10 @@ async function buildTheOddsApiProvider(apiFixture: ApiFixture, sportKey: string)
           matchId: apiFixture.fixture.id,
           fetchedAt,
           error,
-          warnings: ['the_odds_api_shadow_mapping_failed'],
+          warnings: ['the_odds_api_shadow_fetch_failed'],
         }),
       },
-      warnings: ['the_odds_api_shadow_mapping_failed'],
+      warnings: ['the_odds_api_shadow_fetch_failed'],
     };
   }
 }
@@ -345,26 +255,14 @@ async function buildTheOddsApiProvider(apiFixture: ApiFixture, sportKey: string)
 async function main(): Promise<void> {
   const args = parseArgs();
   const apiProvider = await buildApiFootballProvider(args.matchId);
+  const apiFixture = apiProvider.fixture?.raw as ApiFixture | undefined;
+  if (!apiFixture) throw new Error('API-Football fixture payload unavailable for mapping');
+
   const providers: ProviderFusionSourceEnvelopes[] = [apiProvider];
-  const warnings = ['provider_fusion_shadow_only'];
-
-  if (args.includeSportmonks && apiProvider.fixture?.raw) {
-    const apiFixture = apiProvider.fixture.raw as ApiFixture;
-    const sportmonks = await buildSportmonksProvider(apiFixture);
-    if (sportmonks.provider) providers.push(sportmonks.provider);
-    warnings.push(...sportmonks.warnings);
-  } else if (!args.includeSportmonks) {
-    warnings.push('sportmonks_shadow_disabled_or_token_missing');
-  }
-
-  if (args.includeTheOddsApi && apiProvider.fixture?.raw) {
-    const apiFixture = apiProvider.fixture.raw as ApiFixture;
-    const theOddsApi = await buildTheOddsApiProvider(apiFixture, args.theOddsApiSportKey);
-    if (theOddsApi.provider) providers.push(theOddsApi.provider);
-    warnings.push(...theOddsApi.warnings);
-  } else if (!args.includeTheOddsApi) {
-    warnings.push('the_odds_api_shadow_disabled_or_token_missing');
-  }
+  const warnings = ['the_odds_api_shadow_only'];
+  const theOdds = await buildTheOddsProvider(apiFixture, args.sportKey);
+  if (theOdds.provider) providers.push(theOdds.provider);
+  warnings.push(...theOdds.warnings);
 
   const snapshot = buildLiveProviderFusionSnapshot({
     matchId: args.matchId,
@@ -375,28 +273,15 @@ async function main(): Promise<void> {
   const audit = compactFusionSnapshotForAudit(snapshot);
   const report = {
     generatedAt: new Date().toISOString(),
-    mode: 'provider_fusion_shadow',
+    mode: 'the_odds_api_shadow',
     productionImpact: 'none',
     matchId: args.matchId,
+    sportKey: args.sportKey,
     apiFootballProviderIncluded: true,
-    sportmonksProviderIncluded: providers.some((provider) => provider.fixture?.provider === SPORTMONKS_PROVIDER),
     theOddsApiProviderIncluded: providers.some((provider) => provider.odds?.provider === THE_ODDS_API_PROVIDER),
     snapshot,
     audit,
   };
-
-  if (args.persistSample) {
-    await createProviderFixtureSample({
-      match_id: args.matchId,
-      provider_fixture_id: args.matchId,
-      provider: 'provider-fusion',
-      consumer: 'provider-fusion-shadow',
-      success: true,
-      normalized_payload: snapshot,
-      coverage_flags: audit,
-      raw_payload: {},
-    });
-  }
 
   const text = JSON.stringify(report, null, 2);
   if (args.outJson) {

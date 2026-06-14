@@ -294,6 +294,7 @@ vi.mock('../repos/recommendation-deliveries.repo.js', () => ({
 }));
 
 vi.mock('../repos/match-alert-deliveries.repo.js', () => ({
+  enqueueNoSaveLiveInsightDeliveries: vi.fn().mockResolvedValue({ enqueued: 1, deliveryIds: [20] }),
   enqueueStatsOnlyLiveSignalDeliveries: vi.fn().mockResolvedValue({ enqueued: 1, deliveryIds: [10] }),
 }));
 
@@ -538,6 +539,9 @@ beforeEach(async () => {
   vi.mocked(strategicContext.fetchStrategicContext).mockResolvedValue(null as never);
 
   const matchAlertDeliveries = await import('../repos/match-alert-deliveries.repo.js');
+  vi.mocked(matchAlertDeliveries.enqueueNoSaveLiveInsightDeliveries).mockReset();
+  vi.mocked(matchAlertDeliveries.enqueueNoSaveLiveInsightDeliveries)
+    .mockResolvedValue({ enqueued: 1, deliveryIds: [20] });
   vi.mocked(matchAlertDeliveries.enqueueStatsOnlyLiveSignalDeliveries).mockReset();
   vi.mocked(matchAlertDeliveries.enqueueStatsOnlyLiveSignalDeliveries)
     .mockResolvedValue({ enqueued: 1, deliveryIds: [10] });
@@ -589,6 +593,68 @@ describe('runPipelineBatch', () => {
     expect(match.confidence).toBe(8);
     expect(match.saved).toBe(true);
     expect(match.notified).toBe(true);
+  });
+
+  test('uses DB match snapshot as fixture fallback when provider fixture load fails', async () => {
+    const insight = await import('../lib/provider-insight-cache.js');
+    const matchRepo = await import('../repos/matches.repo.js');
+    const { audit } = await import('../lib/audit.js');
+
+    vi.mocked(insight.ensureFixturesForMatchIds).mockRejectedValueOnce(new Error('football_api_daily_limit until midnight'));
+    vi.mocked(matchRepo.getMatchesByIds).mockResolvedValueOnce([{
+      match_id: '100',
+      date: '2026-06-15',
+      kickoff: '02:00:00',
+      kickoff_at_utc: '2026-06-14T19:00:00.000Z',
+      league_id: 270,
+      league_name: 'Chile - Primera Division',
+      home_team: 'Union La Calera',
+      away_team: 'Universidad de Chile',
+      home_logo: '',
+      away_logo: '',
+      venue: 'TBD',
+      status: '1H',
+      home_score: 1,
+      away_score: 2,
+      current_minute: 45,
+      last_updated: '2026-06-14T19:45:00.000Z',
+      home_team_id: 10,
+      away_team_id: 20,
+      round: 'Regular Season',
+      halftime_home: null,
+      halftime_away: null,
+      referee: null,
+      home_reds: 0,
+      away_reds: 0,
+      home_yellows: 0,
+      away_yellows: 0,
+    }]);
+
+    const result = await runPipelineBatch(['100']);
+
+    expect(result.errors).toBe(0);
+    expect(result.processed).toBe(1);
+    expect(result.results[0].success).toBe(true);
+    expect(insight.ensureMatchInsight).toHaveBeenCalledWith('100', expect.objectContaining({
+      fixture: expect.objectContaining({
+        fixture: expect.objectContaining({
+          id: 100,
+          status: expect.objectContaining({ short: '1H', elapsed: 45 }),
+        }),
+        teams: expect.objectContaining({
+          home: expect.objectContaining({ name: 'Union La Calera' }),
+          away: expect.objectContaining({ name: 'Universidad de Chile' }),
+        }),
+      }),
+    }));
+    expect(audit).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'PIPELINE_FIXTURE_DB_FALLBACK',
+      outcome: 'SUCCESS',
+      metadata: expect.objectContaining({
+        fallbackMatchIds: ['100'],
+        fixtureLoadError: 'football_api_daily_limit until midnight',
+      }),
+    }));
   });
 
   test('emits provider fusion shadow diff without changing save or push behavior when promotion is disabled', async () => {
@@ -1049,11 +1115,12 @@ describe('runPipelineBatch', () => {
     expect(createAiPerformanceRecord).not.toHaveBeenCalled();
   });
 
-  test('records runtime policy shadow candidate without saving or notifying', async () => {
+  test('records runtime policy shadow candidate and emits no-save match insight without saving', async () => {
     const footballApi = await import('../lib/football-api.js');
     const { callGemini } = await import('../lib/gemini.js');
     const { audit } = await import('../lib/audit.js');
     const { createRecommendation } = await import('../repos/recommendations.repo.js');
+    const matchAlertDeliveries = await import('../repos/match-alert-deliveries.repo.js');
 
     vi.mocked(footballApi.fetchFixturesByIds).mockResolvedValueOnce([{
       fixture: { id: 100, status: { short: '2H', elapsed: 82 }, timestamp: 1700000000 },
@@ -1099,17 +1166,25 @@ describe('runPipelineBatch', () => {
     const result = await runPipelineBatch(['100']);
     const match = result.results[0];
 
-    expect(match.shouldPush).toBe(false);
+    expect(match.shouldPush).toBe(true);
     expect(match.saved).toBe(false);
-    expect(match.notified).toBe(false);
-    expect(match.outputKind).toBe('shadow_candidate');
-    expect(match.auditBucket).toBe('policy_blocked');
+    expect(match.notified).toBe(true);
+    expect(match.outputKind).toBe('watch_insight');
+    expect(match.auditBucket).toBe('watch_insight_emitted');
     expect(match.debug?.outputDecision).toEqual(expect.objectContaining({
-      outputKind: 'shadow_candidate',
-      auditBucket: 'policy_blocked',
+      outputKind: 'watch_insight',
+      auditBucket: 'watch_insight_emitted',
+      deliveryKind: 'match_alert',
       savedRecommendation: false,
       settlementEligible: false,
       roiEligible: false,
+    }));
+    expect(match.debug?.noSaveLiveInsight).toEqual(expect.objectContaining({
+      insightType: 'policy_blocked',
+      enqueued: 1,
+      deliveryIds: [20],
+      savedRecommendation: false,
+      llmCalled: true,
     }));
     expect(match.debug?.runtimePolicyShadow?.matchedPockets.map((pocket) => pocket.id))
       .toEqual(['late_under_45_two_plus']);
@@ -1123,6 +1198,14 @@ describe('runPipelineBatch', () => {
       marketResolutionStatus: 'resolved',
     }));
     expect(createRecommendation).not.toHaveBeenCalled();
+    expect(matchAlertDeliveries.enqueueNoSaveLiveInsightDeliveries).toHaveBeenCalledWith(expect.objectContaining({
+      matchId: '100',
+      insightType: 'policy_blocked',
+      evidenceMode: 'full_live_data',
+      triggerKey: 'insight:policy_blocked:100:3-1:80',
+      marketFamilyHint: 'under_4.5',
+      reasons: expect.arrayContaining(['policy_blocked']),
+    }));
     expect(audit).toHaveBeenCalledWith(expect.objectContaining({
       category: 'PIPELINE',
       action: 'PIPELINE_POLICY_SHADOW_CANDIDATE',
@@ -1150,6 +1233,18 @@ describe('runPipelineBatch', () => {
         matchedPockets: expect.arrayContaining([
           expect.objectContaining({ id: 'late_under_45_two_plus' }),
         ]),
+      }),
+    }));
+    expect(audit).toHaveBeenCalledWith(expect.objectContaining({
+      category: 'PIPELINE',
+      action: 'NO_SAVE_LIVE_INSIGHT_EMITTED',
+      outcome: 'SUCCESS',
+      metadata: expect.objectContaining({
+        matchId: '100',
+        insightType: 'policy_blocked',
+        enqueued: 1,
+        savedRecommendation: false,
+        contract: 'no-save-live-insight-v1',
       }),
     }));
   });
@@ -1861,6 +1956,7 @@ describe('runPipelineBatch', () => {
 
   test('blocks auto LLM in degraded odds+events mode', async () => {
     const footballApi = await import('../lib/football-api.js');
+    const matchAlertDeliveries = await import('../repos/match-alert-deliveries.repo.js');
     vi.mocked(footballApi.fetchFixtureStatistics).mockResolvedValueOnce([]);
     vi.mocked(footballApi.fetchFixtureEvents).mockResolvedValueOnce([
       { time: { elapsed: 23 }, team: { id: 1 }, type: 'Goal', detail: 'Normal Goal', player: { name: 'Player A' } },
@@ -1874,7 +1970,17 @@ describe('runPipelineBatch', () => {
     expect(result.results[0]?.debug?.statsFallbackUsed).toBe(false);
     expect(result.results[0]?.debug?.evidenceMode).toBe('odds_events_only_degraded');
     expect(result.results[0]?.debug?.skippedAt).toBe('llm_eligibility');
-    expect(result.results[0]?.debug?.skipReason).toBe('degraded_evidence');
+    expect(result.results[0]?.debug?.skipReason).toBe('degraded_evidence_insight_emitted');
+    expect(result.results[0]?.outputKind).toBe('watch_insight');
+    expect(result.results[0]?.auditBucket).toBe('watch_insight_emitted');
+    expect(result.results[0]?.shouldPush).toBe(true);
+    expect(result.results[0]?.saved).toBe(false);
+    expect(result.results[0]?.notified).toBe(true);
+    expect(matchAlertDeliveries.enqueueNoSaveLiveInsightDeliveries).toHaveBeenCalledWith(expect.objectContaining({
+      matchId: '100',
+      insightType: 'degraded_evidence',
+      evidenceMode: 'odds_events_only_degraded',
+    }));
     expect(result.results[0]?.success).toBe(true);
   });
 
@@ -1920,8 +2026,13 @@ describe('runPipelineBatch', () => {
 
     const match = result.results[0];
     expect(match?.success).toBe(true);
-    expect(match?.decisionKind).toBe('no_bet');
+    expect(match?.decisionKind).toBe('condition_only');
+    expect(match?.shouldPush).toBe(true);
+    expect(match?.saved).toBe(false);
+    expect(match?.notified).toBe(true);
+    expect(match?.outputKind).toBe('watch_insight');
     expect(match?.debug?.evidenceMode).toBe('odds_events_only_degraded');
+    expect(match?.debug?.skipReason).toBe('degraded_evidence_insight_emitted');
     expect(match?.debug?.providerReturnedNoLiveStatistics).toBe(true);
     expect(match?.debug?.providerClockLagMinutes).toBeNull();
     expect(match?.debug?.providerClockLagStatus).toBe('unknown');
@@ -1938,6 +2049,7 @@ describe('runPipelineBatch', () => {
 
   test('does not run recommendation LLM in degraded odds+events mode even when custom conditions exist', async () => {
     const footballApi = await import('../lib/football-api.js');
+    const matchAlertDeliveries = await import('../repos/match-alert-deliveries.repo.js');
     vi.mocked(footballApi.fetchFixtureStatistics).mockResolvedValueOnce([]);
     vi.mocked(footballApi.fetchFixtureEvents).mockResolvedValueOnce([
       { time: { elapsed: 23 }, team: { id: 1 }, type: 'Goal', detail: 'Normal Goal', player: { name: 'Player A' } },
@@ -1954,10 +2066,28 @@ describe('runPipelineBatch', () => {
 
     const result = await runPipelineBatch(['100']);
     expect(callGemini).not.toHaveBeenCalled();
-    expect(result.results[0]?.shouldPush).toBe(false);
+    expect(result.results[0]?.shouldPush).toBe(true);
+    expect(result.results[0]?.saved).toBe(false);
+    expect(result.results[0]?.notified).toBe(true);
+    expect(result.results[0]?.outputKind).toBe('watch_insight');
+    expect(result.results[0]?.auditBucket).toBe('watch_insight_emitted');
     expect(result.results[0]?.debug?.evidenceMode).toBe('odds_events_only_degraded');
     expect(result.results[0]?.debug?.skippedAt).toBe('llm_eligibility');
-    expect(result.results[0]?.debug?.skipReason).toBe('degraded_evidence');
+    expect(result.results[0]?.debug?.skipReason).toBe('degraded_evidence_insight_emitted');
+    expect(result.results[0]?.debug?.noSaveLiveInsight).toEqual(expect.objectContaining({
+      insightType: 'degraded_evidence',
+      enqueued: 1,
+      deliveryIds: [20],
+      savedRecommendation: false,
+      llmCalled: false,
+    }));
+    expect(matchAlertDeliveries.enqueueNoSaveLiveInsightDeliveries).toHaveBeenCalledWith(expect.objectContaining({
+      matchId: '100',
+      insightType: 'degraded_evidence',
+      evidenceMode: 'odds_events_only_degraded',
+      triggerKey: 'insight:degraded_evidence:100:1-1:60',
+      reasons: expect.arrayContaining(['evidence_mode=odds_events_only_degraded']),
+    }));
   });
 
   test('keeps hallucinated odds out of recommendation persistence when canonical odds are unavailable', async () => {

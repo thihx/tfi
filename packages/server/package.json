@@ -85,7 +85,9 @@
     "provider:real-sample": "tsx src/scripts/audit-real-provider-samples.ts",
     "provider:sportmonks-shadow": "tsx src/scripts/run-sportmonks-shadow-poc.ts",
     "provider:fusion-shadow": "tsx src/scripts/run-provider-fusion-shadow.ts",
+    "provider:theoddsapi-shadow": "tsx src/scripts/run-the-odds-api-shadow.ts",
     "provider:coverage-backfill": "tsx src/scripts/backfill-provider-odds-coverage-flags.ts",
+    "strategic-context:audit-quality": "tsx src/scripts/audit-strategic-context-quality.ts",
     "benchmark:gemini-models": "tsx src/scripts/compare-gemini-model-benchmark.ts --apply-replay-policy --max-scenarios 12",
     "benchmark:gemini-models:smoke": "tsx src/scripts/compare-gemini-model-benchmark.ts --smoke-only"
   },

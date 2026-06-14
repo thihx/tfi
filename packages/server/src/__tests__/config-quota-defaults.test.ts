@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 describe('provider quota protective defaults', () => {
   afterEach(() => {
@@ -18,12 +20,18 @@ describe('provider quota protective defaults', () => {
       existsSync: vi.fn(() => true),
     }));
     vi.stubEnv('NODE_ENV', 'test');
+    vi.stubEnv('TFI_LOAD_ENV_IN_TEST', 'true');
     vi.stubEnv('SPORTMONKS_API_TOKEN', 'test-token');
     vi.resetModules();
 
     const { config } = await import('../config.js');
 
+    const repoRoot = path.resolve(fileURLToPath(new URL('../../../../', import.meta.url)));
     expect(config.sportmonksApiToken).toBe('test-token');
+    expect(dotenvConfig).toHaveBeenCalledWith(expect.objectContaining({
+      path: path.join(repoRoot, '.env.azure'),
+      override: false,
+    }));
     expect(dotenvConfig).toHaveBeenCalledWith(expect.objectContaining({
       path: expect.stringMatching(/packages[\\/]+server[\\/]+\.env\.local$/),
       override: false,

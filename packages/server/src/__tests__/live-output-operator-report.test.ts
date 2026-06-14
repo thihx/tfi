@@ -24,6 +24,7 @@ describe('live output operator report', () => {
     expect(classifyLiveOutputAuditBucket('policy_blocked')).toBe('policy');
     expect(classifyLiveOutputAuditBucket('save_integrity_blocked')).toBe('save');
     expect(classifyLiveOutputAuditBucket('delivery_failed')).toBe('delivery');
+    expect(classifyLiveOutputAuditBucket('watch_insight_emitted')).toBe('delivery');
     expect(classifyLiveOutputAuditBucket('recommendation_saved')).toBe('success');
     expect(classifyLiveOutputAuditBucket('provider_quota_or_circuit_open')).toBe('provider');
   });

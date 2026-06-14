@@ -4,8 +4,16 @@
 
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 
+const footballApiCircuitMock = vi.hoisted(() => ({
+  skip: null as null | { skipped: true; skipReason: string; openUntil: string },
+}));
+
 vi.mock('../lib/redis.js', () => ({
   getRedisClient: () => ({ hget: vi.fn(), hset: vi.fn(), expire: vi.fn(), del: vi.fn() }),
+}));
+
+vi.mock('../lib/football-api-circuit.js', () => ({
+  skipIfFootballApiCircuitOpen: vi.fn(() => Promise.resolve(footballApiCircuitMock.skip)),
 }));
 
 vi.mock('../jobs/job-progress.js', () => ({
@@ -18,6 +26,7 @@ vi.mock('../config.js', () => ({
     pipelineEnabled: true,
     pipelineBatchSize: 3,
     pipelineTelegramChatId: '123456',
+    statsOnlySignalRecheckMinutes: 10,
   },
 }));
 
@@ -59,6 +68,10 @@ vi.mock('../repos/recommendations.repo.js', () => ({
   getLatestRecommendationsForMatches: vi.fn().mockResolvedValue(new Map()),
 }));
 
+vi.mock('../repos/match-alert-deliveries.repo.js', () => ({
+  getLatestStatsOnlySignalDeliveriesByMatchIds: vi.fn().mockResolvedValue(new Map()),
+}));
+
 vi.mock('../repos/settings.repo.js', () => ({
   getSettings: vi.fn().mockResolvedValue({}),
 }));
@@ -75,6 +88,7 @@ const { checkLiveTriggerJob } = await import('../jobs/check-live-trigger.job.js'
 
 beforeEach(() => {
   vi.clearAllMocks();
+  footballApiCircuitMock.skip = null;
 });
 
 describe('checkLiveTriggerJob', () => {
@@ -129,6 +143,22 @@ describe('checkLiveTriggerJob', () => {
     expect(result.pipelineResults).toHaveLength(1);
     expect(result.pipelineResults![0].processed).toBe(2);
     expect(result.candidateCount).toBe(2);
+  });
+
+  test('continues from DB/provider fallback path when API-Football circuit is open', async () => {
+    footballApiCircuitMock.skip = {
+      skipped: true,
+      skipReason: 'football_api_daily_limit',
+      openUntil: '2026-06-15T00:00:00.000Z',
+    };
+
+    const result = await checkLiveTriggerJob();
+
+    const { runPipelineBatch } = await import('../lib/server-pipeline.js');
+    expect(runPipelineBatch).toHaveBeenCalledWith(['100', '300']);
+    expect(result.skipped).toBeUndefined();
+    expect(result.apiFootballCircuitOpen).toBe(true);
+    expect(result.apiFootballCircuitOpenUntil).toBe('2026-06-15T00:00:00.000Z');
   });
 
   test('skips pipeline when pipelineEnabled is false', async () => {
@@ -269,6 +299,132 @@ describe('checkLiveTriggerJob', () => {
         totalProcessed: 0,
         totalLlmEligible: 0,
         totalSavedRecommendations: 0,
+      }),
+    }));
+  });
+
+  test('allows stale live matches back into pipeline for stats-only no-odds signal checks', async () => {
+    const snapshotsRepo = await import('../repos/match-snapshots.repo.js');
+    const recommendationsRepo = await import('../repos/recommendations.repo.js');
+    const matchRepo = await import('../repos/matches.repo.js');
+    vi.mocked(snapshotsRepo.getLatestSnapshotsForMatches).mockResolvedValueOnce(new Map([
+      ['100', {
+        id: 1,
+        match_id: '100',
+        captured_at: new Date().toISOString(),
+        source: 'server-pipeline',
+        minute: 64,
+        status: '1H',
+        home_score: 0,
+        away_score: 0,
+        stats: {
+          shots: { home: 12, away: 6 },
+          shots_on_target: { home: 4, away: 1 },
+          corners: { home: 6, away: 2 },
+        },
+        events: [],
+        odds: {},
+      }],
+      ['300', {
+        id: 2,
+        match_id: '300',
+        captured_at: new Date().toISOString(),
+        source: 'server-pipeline',
+        minute: 64,
+        status: '2H',
+        home_score: 0,
+        away_score: 0,
+        stats: {},
+        events: [],
+        odds: {},
+      }],
+    ]));
+    vi.mocked(recommendationsRepo.getLatestRecommendationsForMatches).mockResolvedValueOnce(new Map());
+    vi.mocked(matchRepo.getMatchesByIds).mockResolvedValueOnce([
+      { match_id: '100', status: '1H', current_minute: 65, home_score: 0, away_score: 0 },
+      { match_id: '200', status: 'NS', current_minute: null, home_score: null, away_score: null },
+      { match_id: '300', status: '2H', current_minute: 65, home_score: 0, away_score: 0 },
+    ] as never);
+
+    const result = await checkLiveTriggerJob();
+
+    const { runPipelineBatch } = await import('../lib/server-pipeline.js');
+    expect(runPipelineBatch).toHaveBeenCalledTimes(1);
+    expect(runPipelineBatch).toHaveBeenCalledWith(['100']);
+    expect(result.liveCount).toBe(2);
+    expect(result.candidateCount).toBe(1);
+
+    const { audit } = await import('../lib/audit.js');
+    expect(audit).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'PIPELINE_COMPLETE',
+      metadata: expect.objectContaining({
+        candidateMatchIds: ['100'],
+        skippedMatchIds: ['300'],
+        statsOnlyOverrideCandidates: 1,
+        stalenessDiagnostics: expect.arrayContaining([
+          expect.objectContaining({
+            matchId: '100',
+            selected: true,
+            stalenessReason: 'no_significant_change',
+            statsOnlyOverride: true,
+            statsOnlyOverrideReason: 'stats_only_no_prior_signal',
+            snapshotHasStatsOrEvents: true,
+            snapshotHasOdds: false,
+          }),
+        ]),
+      }),
+    }));
+  });
+
+  test('does not stats-only override stale matches when latest signal lookup fails', async () => {
+    const snapshotsRepo = await import('../repos/match-snapshots.repo.js');
+    const recommendationsRepo = await import('../repos/recommendations.repo.js');
+    const matchRepo = await import('../repos/matches.repo.js');
+    const deliveriesRepo = await import('../repos/match-alert-deliveries.repo.js');
+    vi.mocked(deliveriesRepo.getLatestStatsOnlySignalDeliveriesByMatchIds).mockRejectedValueOnce(new Error('db unavailable'));
+    vi.mocked(snapshotsRepo.getLatestSnapshotsForMatches).mockResolvedValueOnce(new Map([
+      ['100', {
+        id: 1,
+        match_id: '100',
+        captured_at: new Date().toISOString(),
+        source: 'server-pipeline',
+        minute: 64,
+        status: '1H',
+        home_score: 0,
+        away_score: 0,
+        stats: { shots: { home: 12, away: 6 } },
+        events: [],
+        odds: {},
+      }],
+    ]));
+    vi.mocked(recommendationsRepo.getLatestRecommendationsForMatches).mockResolvedValueOnce(new Map());
+    vi.mocked(matchRepo.getMatchesByIds).mockResolvedValueOnce([
+      { match_id: '100', status: '1H', current_minute: 65, home_score: 0, away_score: 0 },
+      { match_id: '200', status: 'NS', current_minute: null, home_score: null, away_score: null },
+    ] as never);
+
+    const result = await checkLiveTriggerJob();
+
+    const { runPipelineBatch } = await import('../lib/server-pipeline.js');
+    expect(runPipelineBatch).not.toHaveBeenCalled();
+    expect(result.liveCount).toBe(1);
+    expect(result.candidateCount).toBe(0);
+
+    const { audit } = await import('../lib/audit.js');
+    expect(audit).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'PIPELINE_COMPLETE',
+      metadata: expect.objectContaining({
+        statsOnlyOverrideCandidates: 0,
+        stalenessDiagnostics: expect.arrayContaining([
+          expect.objectContaining({
+            matchId: '100',
+            selected: false,
+            statsOnlyOverride: false,
+            statsOnlyOverrideReason: 'stats_only_signal_lookup_failed',
+            snapshotHasStatsOrEvents: true,
+            snapshotHasOdds: false,
+          }),
+        ]),
       }),
     }));
   });

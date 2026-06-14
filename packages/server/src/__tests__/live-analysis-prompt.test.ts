@@ -111,6 +111,43 @@ describe('buildLiveAnalysisPrompt', () => {
     expect(prompt).not.toContain('"over_2.5"');
   });
 
+  test('down-weights low-quality strategic context as soft guidance only', () => {
+    const prompt = buildLiveAnalysisPrompt({
+      ...baseInput,
+      strategicContext: {
+        version: 2,
+        competition_type: 'international',
+        qualitative: {
+          en: {
+            summary: 'Provider-limited context.',
+            home_motivation: 'No data found',
+            away_motivation: 'No data found',
+          },
+        },
+        quantitative: {
+          home_last5_points: 8,
+          away_last5_points: 4,
+          home_last5_goals_for: 7,
+          away_last5_goals_for: 3,
+        },
+        source_meta: {
+          search_quality: 'low',
+          trusted_source_count: 1,
+          rejected_source_count: 0,
+          sources: [{
+            domain: 'api-football.com',
+            trust_tier: 'tier_2',
+            source_type: 'stats_reference',
+          }],
+        },
+      },
+    }, settings);
+
+    expect(prompt).toContain('PREMATCH EXPERT FEATURES V1');
+    expect(prompt).toContain('"source_quality":"low"');
+    expect(prompt).toContain('If prematch strength is weak or unavailable, default should_push=false unless live evidence is clearly one-sided and actionable.');
+  });
+
   test('explains no live stats as provider coverage without claiming clock delay', () => {
     const prompt = buildLiveAnalysisPrompt({
       ...baseInput,

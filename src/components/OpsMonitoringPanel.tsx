@@ -266,6 +266,9 @@ interface PromptQualityOverview {
     noPrematchRows: number;
     highNoiseRows: number;
     highNoiseRate: number;
+    distinctMatchRows?: number;
+    highNoiseDistinctMatches?: number;
+    highNoiseDistinctRate?: number;
     avgNoisePenalty: number;
     structuredAskAiEligibleRows: number;
     structuredAskAiEligibleRate: number;
@@ -278,6 +281,9 @@ interface PromptQualityOverview {
       matchId: string;
       matchDisplay: string;
       noisePenalty: number;
+      rowCount?: number;
+      highNoiseRows?: number;
+      avgNoisePenalty?: number;
       prematchStrength: string;
       prematchAvailability: string;
       promptDataLevel: string;
@@ -1225,7 +1231,11 @@ export function OpsMonitoringPanel() {
                 { label: 'Stacking rate', value: `${snapshot.promptQuality.sameThesisStackingRate}%`, warn: snapshot.promptQuality.sameThesisStackingRate > 12 },
                 { label: 'Corners usage', value: `${snapshot.promptQuality.cornersUsageRate}%`, warn: snapshot.promptQuality.cornersUsageRate > 25 },
                 { label: 'Late high-line', value: `${snapshot.promptQuality.lateHighLineRate}%`, warn: snapshot.promptQuality.lateHighLineRate > 8 },
-                { label: 'High-noise prematch', value: `${snapshot.promptQuality.prematch.highNoiseRate}%`, warn: snapshot.promptQuality.prematch.highNoiseRate > 25 },
+                {
+                  label: 'High-noise prematch',
+                  value: `${snapshot.promptQuality.prematch.highNoiseDistinctRate ?? snapshot.promptQuality.prematch.highNoiseRate}%`,
+                  warn: (snapshot.promptQuality.prematch.highNoiseDistinctRate ?? snapshot.promptQuality.prematch.highNoiseRate) >= 75,
+                },
                 { label: 'Structured eligible', value: `${snapshot.promptQuality.prematch.structuredAskAiEligibleRate}%`, warn: snapshot.promptQuality.prematch.structuredAskAiEligibleRate < 50 },
                 { label: 'Avg prematch noise', value: `${snapshot.promptQuality.prematch.avgNoisePenalty}`, warn: snapshot.promptQuality.prematch.avgNoisePenalty >= 50 },
               ].map((item) => (
@@ -1250,6 +1260,7 @@ export function OpsMonitoringPanel() {
                   ['Prematch strong rows', snapshot.promptQuality.prematch.strongRows],
                   ['Prematch weak rows', snapshot.promptQuality.prematch.weakRows],
                   ['High-noise rows', snapshot.promptQuality.prematch.highNoiseRows],
+                  ['High-noise matches', `${snapshot.promptQuality.prematch.highNoiseDistinctMatches ?? '-'} / ${snapshot.promptQuality.prematch.distinctMatchRows ?? '-'}`],
                   ['Prematch minimal rows', snapshot.promptQuality.prematch.minimalAvailabilityRows],
                   ['Structured eligible rows', snapshot.promptQuality.prematch.structuredAskAiEligibleRows],
                   ['Structured blocked rows', snapshot.promptQuality.prematch.structuredAskAiBlockedRows],
@@ -1268,7 +1279,7 @@ export function OpsMonitoringPanel() {
                     <div key={`${row.matchId}_${row.analyzedAt}`} style={{ padding: '4px 0', borderBottom: '1px solid var(--gray-100)' }}>
                       <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gray-700)' }}>{row.matchDisplay}</div>
                       <div style={{ fontSize: '11px', color: 'var(--gray-500)' }}>
-                        noise {row.noisePenalty} · {row.prematchStrength} · {row.prematchAvailability} · {row.promptDataLevel}
+                        noise {row.noisePenalty} | rows {row.highNoiseRows ?? 1}/{row.rowCount ?? 1} | {row.prematchStrength} | {row.prematchAvailability} | {row.promptDataLevel}
                       </div>
                     </div>
                   ))
